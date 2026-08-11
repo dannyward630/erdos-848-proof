@@ -1,0 +1,126 @@
+name: NTFS OLean host diagnostic
+
+on:
+  push:
+    branches:
+      - lean-host-diagnostic
+
+permissions:
+  contents: read
+
+jobs:
+  problem-core-pilot:
+    name: ProblemCore-source-cache-pilot
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - name: Check out diagnostic branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Compile pinned ProblemCore source and compare release OLean
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP "problem-core-source-cache-pilot.json"
+          ./diagnostics/problem_core_source_cache_pilot.ps1 -OutputPath $output
+
+      - name: Upload deterministic pilot receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: problem-core-source-cache-pilot
+          path: ${{ runner.temp }}/problem-core-source-cache-pilot.json
+          if-no-files-found: error
+          retention-days: 7
+
+  measure:
+    name: parts-${{ matrix.start }}-${{ matrix.end }}
+    runs-on: windows-2025
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - start: 1
+            end: 15
+          - start: 16
+            end: 30
+          - start: 31
+            end: 45
+          - start: 46
+            end: 60
+          - start: 61
+            end: 75
+    steps:
+      - name: Check out diagnostic branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Measure exact NTFS allocation
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP "ntfs-parts-${{ matrix.start }}-${{ matrix.end }}.json"
+          ./diagnostics/measure_olean_ntfs.ps1 `
+            -StartPart ${{ matrix.start }} `
+            -EndPart ${{ matrix.end }} `
+            -OutputPath $output
+
+      - name: Upload exact partial report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ntfs-parts-${{ matrix.start }}-${{ matrix.end }}
+          path: ${{ runner.temp }}/ntfs-parts-${{ matrix.start }}-${{ matrix.end }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  aggregate:
+    name: aggregate-exact-allocation
+    needs: measure
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out diagnostic branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Download partial reports
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: ntfs-parts-*
+          path: ${{ runner.temp }}/ntfs-parts
+
+      - name: Aggregate all 75 shards
+        run: |
+          python3 -B diagnostics/aggregate_olean_ntfs.py \
+            "${RUNNER_TEMP}/ntfs-parts" \
+            "${RUNNER_TEMP}/ntfs-olean-all-75.json"
+
+      - name: Publish summary
+        run: |
+          python3 -B - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["RUNNER_TEMP"]) / "ntfs-olean-all-75.json"
+          data = json.loads(path.read_text())
+          totals = data["totals"]
+          observed = data["observed_standard_windows_2025"]
+          gib = 1024 ** 3
+          print("# Exact NTFS OLean allocation")
+          print()
+          print(f"- Files: {totals['files']:,}")
+          print(f"- Logical OLean bytes: {totals['logical_bytes']:,} ({totals['logical_bytes']/gib:.3f} GiB)")
+          print(f"- NTFS allocated bytes: {totals['ntfs_allocated_bytes']:,} ({totals['ntfs_allocated_bytes']/gib:.3f} GiB)")
+          print(f"- Allocation ratio: {totals['ntfs_allocation_ratio']:.6f}")
+          print(f"- Release ZIP bytes: {totals['archive_bytes']:,} ({totals['archive_bytes']/gib:.3f} GiB)")
+          print(f"- Minimum initial scratch free: {observed['minimum_initial_scratch_free_bytes']:,} ({observed['minimum_initial_scratch_free_bytes']/gib:.3f} GiB)")
+          print(f"- Minimum physical RAM: {observed['minimum_physical_memory_bytes']:,} ({observed['minimum_physical_memory_bytes']/gib:.3f} GiB)")
+          print(f"- Compressed OLeans fit: {observed['compressed_oleans_fit_initial_scratch_free']}")
+          print(f"- Compressed OLeans plus all ZIPs fit: {observed['compressed_oleans_plus_all_release_zips_fit_initial_scratch_free']}")
+          print(f"- Meets 64 GiB RAM / 200 GiB free gate: {observed['meets_completion_gate_64_gib_ram_and_200_gib_free']}")
+          PY
+
+      - name: Upload aggregate report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ntfs-olean-all-75
+          path: ${{ runner.temp }}/ntfs-olean-all-75.json
+          if-no-files-found: error
+          retention-days: 7
