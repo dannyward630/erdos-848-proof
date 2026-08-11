@@ -2,6 +2,9 @@ name: Lean source checkpoint pilot
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - lean-host-diagnostic
 
 permissions:
   contents: read
@@ -12,6 +15,9 @@ env:
 jobs:
   powershell-parse:
     name: PowerShell-parser-smoke
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, '[checkpoint-pilot]')
     runs-on: windows-2025
     timeout-minutes: 5
     steps:
