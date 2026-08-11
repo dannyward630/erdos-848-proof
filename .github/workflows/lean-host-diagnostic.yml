@@ -1,0 +1,49 @@
+name: Lean Windows host diagnostic
+
+on:
+  push:
+    branches:
+      - lean-host-diagnostic
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Record host resources
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Write-Output "runner_os=$env:RUNNER_OS"
+          Write-Output "runner_arch=$env:RUNNER_ARCH"
+          Write-Output "runner_name=$env:RUNNER_NAME"
+          Get-CimInstance Win32_ComputerSystem |
+            Select-Object Manufacturer, Model, NumberOfLogicalProcessors, TotalPhysicalMemory |
+            Format-List
+          Get-CimInstance Win32_OperatingSystem |
+            Select-Object Caption, Version, BuildNumber, FreePhysicalMemory, TotalVisibleMemorySize, TotalVirtualMemorySize |
+            Format-List
+          Get-CimInstance Win32_PageFileUsage |
+            Select-Object Name, AllocatedBaseSize, CurrentUsage, PeakUsage |
+            Format-List
+          Get-PSDrive -PSProvider FileSystem |
+            Select-Object Name, Used, Free, Root |
+            Format-Table -AutoSize
+          fsutil volume diskfree C:
+          compact /Q /S:"$env:GITHUB_WORKSPACE"
+
+      - name: Check administrative capabilities without mutation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          whoami
+          whoami /groups
+          fsutil behavior query DisableCompression
+          Get-CimInstance Win32_PageFileSetting |
+            Select-Object Name, InitialSize, MaximumSize |
+            Format-List
