@@ -1,0 +1,109 @@
+name: Lean Windows host diagnostic
+
+on:
+  push:
+    branches:
+      - lean-host-diagnostic
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Record host resources
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Write-Output "runner_os=$env:RUNNER_OS"
+          Write-Output "runner_arch=$env:RUNNER_ARCH"
+          Write-Output "runner_name=$env:RUNNER_NAME"
+          Get-CimInstance Win32_ComputerSystem |
+            Select-Object Manufacturer, Model, NumberOfLogicalProcessors, TotalPhysicalMemory |
+            Format-List
+          Get-CimInstance Win32_OperatingSystem |
+            Select-Object Caption, Version, BuildNumber, FreePhysicalMemory, TotalVisibleMemorySize, TotalVirtualMemorySize |
+            Format-List
+          Get-CimInstance Win32_PageFileUsage |
+            Select-Object Name, AllocatedBaseSize, CurrentUsage, PeakUsage |
+            Format-List
+          Get-PSDrive -PSProvider FileSystem |
+            Select-Object Name, Used, Free, Root |
+            Format-Table -AutoSize
+          fsutil volume diskfree C:
+          compact /Q /S:"$env:GITHUB_WORKSPACE"
+
+      - name: Check administrative capabilities without mutation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          whoami
+          whoami /groups
+          fsutil behavior query DisableCompression
+          Get-CimInstance Win32_PageFileSetting |
+            Select-Object Name, InitialSize, MaximumSize |
+            Format-List
+
+      - name: Probe Windows commit headroom
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type @'
+          using System;
+          using System.Runtime.InteropServices;
+          public static class CommitProbe {
+            [DllImport("kernel32.dll", SetLastError=true)]
+            public static extern IntPtr VirtualAlloc(IntPtr address, UIntPtr size, uint allocationType, uint protect);
+            [DllImport("kernel32.dll", SetLastError=true)]
+            public static extern bool VirtualFree(IntPtr address, UIntPtr size, uint freeType);
+          }
+          '@
+          foreach ($gib in @(24, 32)) {
+            $bytes = [UInt64]$gib * 1024 * 1024 * 1024
+            $pointer = [CommitProbe]::VirtualAlloc(
+              [IntPtr]::Zero,
+              [UIntPtr]::new($bytes),
+              0x3000,
+              0x04
+            )
+            if ($pointer -eq [IntPtr]::Zero) {
+              $errorCode = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+              Write-Output "COMMIT_PROBE_${gib}_GIB=failed win32=$errorCode"
+            } else {
+              Write-Output "COMMIT_PROBE_${gib}_GIB=passed"
+              Get-CimInstance Win32_PageFileUsage |
+                Select-Object Name, AllocatedBaseSize, CurrentUsage, PeakUsage |
+                Format-List
+              if (-not [CommitProbe]::VirtualFree($pointer, [UIntPtr]::Zero, 0x8000)) {
+                throw "VirtualFree failed"
+              }
+            }
+          }
+
+      - name: Measure one authenticated OLean shard under NTFS compression
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP 'olean-compression-probe'
+          $zip = Join-Path $env:RUNNER_TEMP 'olean-part-001.zip'
+          New-Item -ItemType Directory -Path $root | Out-Null
+          compact /C /I /Q $root
+          curl.exe -L --fail --silent --show-error `
+            'https://github.com/crabsatellite/erdos-848-squarefree-product/releases/download/v1.0.5-kernel/erdos848-olean-cache-lean-4.30.0-rc2-windows-x86_64-e0dd18260bd4-part-001-of-075.zip' `
+            -o $zip
+          $digest = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
+          if ($digest -ne '800a092f91056fe4ea67cbe51ee438d2550a0673613ff17a900c8aaa124c46c8') {
+            throw "shard hash mismatch: $digest"
+          }
+          $before = (Get-PSDrive D).Free
+          Expand-Archive -LiteralPath $zip -DestinationPath $root
+          compact /C /I /Q /S:$root
+          $after = (Get-PSDrive D).Free
+          $logical = (Get-ChildItem -LiteralPath $root -Recurse -File |
+            Measure-Object -Property Length -Sum).Sum
+          Write-Output "OLEAN_SHARD_LOGICAL_BYTES=$logical"
+          Write-Output "OLEAN_SHARD_ALLOCATED_DELTA_BYTES=$($before - $after)"
