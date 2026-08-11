@@ -86,7 +86,17 @@ if (($outputItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
     throw "output root must not be a reparse point"
 }
 
-$python = (Get-Command python -CommandType Application -ErrorAction Stop).Source
+$pythonCommands = @(Get-Command python.exe -All -CommandType Application `
+    -ErrorAction Stop | Where-Object {
+        $_.Source -notmatch "[\\/]WindowsApps[\\/]"
+    })
+if ($pythonCommands.Count -lt 1) {
+    throw "could not resolve a real Python executable outside WindowsApps"
+}
+$python = $pythonCommands[0].Source
+if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
+    throw "resolved Python executable is not a regular file: $python"
+}
 $planner = Join-Path $repo "diagnostics/lean_checkpoint_plan.py"
 Invoke-Checked -Description "authenticate canonical plan and source" -Command {
     & $python -B $planner verify-plan --plan $plan --source-root $source --lock $lock

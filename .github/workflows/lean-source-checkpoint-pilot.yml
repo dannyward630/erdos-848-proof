@@ -109,6 +109,12 @@ jobs:
             /lean4/Erdos848/ProblemCore.lean
             /lean4/Erdos848/SharpnessCore.lean
 
+      - name: Select pinned Python series
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+          architecture: x64
+
       - name: Download canonical plan
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
@@ -157,6 +163,12 @@ jobs:
             /lean4/lake-manifest.json
             /lean4/Erdos848/ProblemCore.lean
             /lean4/Erdos848/SharpnessCore.lean
+
+      - name: Select pinned Python series
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+          architecture: x64
 
       - name: Download plan and same-run content-checked genesis asset
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
