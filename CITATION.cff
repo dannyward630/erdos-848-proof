@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this verification package, please cite this repository and the decisive sources listed in docs/source-audit.md."
+title: "A computer-assisted proof and verification package for Erdős Problem 848"
+type: software
+authors:
+  - family-names: Ward
+    given-names: Danny
+repository-code: "https://github.com/dannyward630/erdos-848-proof"
+url: "https://github.com/dannyward630/erdos-848-proof"
+abstract: >-
+  A source-faithful all-positive-integer proof package for Erdős Problem 848,
+  including exact finite and structural certificates, independent checkers,
+  an audited explicit high-range theorem, adversarial reviews, and a guarded
+  Lean completion interface.
+keywords:
+  - Erdős problems
+  - number theory
+  - computer-assisted proof
+  - exact certificates
+  - Lean 4
+version: 1.0.0-math
+date-released: 2026-08-11

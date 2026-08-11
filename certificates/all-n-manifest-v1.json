@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "statement": {
+    "path": "docs/problem-spec.md",
+    "sha256": "1a50dd45f495ae08d98d79200154e54a946d1e6d9c36259c5226eb8ce4885f5b"
+  },
+  "art005": {
+    "url": "https://github.com/ipitchford/erdos-848-all-n.git",
+    "revision": "1afd7c722cae5ee7dd0fd1fde64427537394f749",
+    "tree": "6dedab80313f06e232b0ca47c29ebaf39ce35b17",
+    "release_manifest_sha256": "6f197f0d5bef00c97275915ee21dcf8891543eab54dda9312c4227bbde927573"
+  },
+  "high_source": {
+    "path": "sources/cache/sothanaphan-2.64e17.pdf",
+    "sha256": "8162113a571dc2283fc77de1cdf36e7abf424eeec952aa27cf82a4f44b3a796f",
+    "claims_sha256": "4726814d80fc63353a77c18bac8691bc917efd5ef1c7dcf10a14aed03674b215"
+  },
+  "certificates": [
+    {
+      "path": "certificates/prefix-10000.json",
+      "sha256": "693ce882fb3f3786caf8eb502dd0677f42a4ed687adaa71a613b27ad7ef49727"
+    },
+    {
+      "path": "certificates/p13-factor-primality.json",
+      "sha256": "cb67a19e9edfc21206b6ec0c886bf6aa67b97a110296f7e20bf00bdf818cfc64"
+    },
+    {
+      "path": "certificates/finite-factor-leaves.json",
+      "sha256": "4fc75b0ed263df81c07c5997c915511351ea61fff085d3ac95159c524ca9aad6"
+    }
+  ],
+  "checker_sources": [
+    {
+      "path": "computations/generate_prefix_certificate.py",
+      "sha256": "fdf19172564868946ff26916cda76c4ad47574ddeda0242bd71d05b4caad46dd"
+    },
+    {
+      "path": "computations/check_prefix_certificate.py",
+      "sha256": "615bd9a0d4a4c5ed6c45fcde2854131001c86c6feafbbdf0dab326d2728b2576"
+    },
+    {
+      "path": "computations/test_prefix_checker.py",
+      "sha256": "3cdce143570e5dcb06b622c892dbe414195ba877749b0a0c9faa27140c304903"
+    },
+    {
+      "path": "computations/exhaustive_small_prefix.py",
+      "sha256": "f68e61c73cdc4566bceac4bfb84af11933daf50cdea71b2bf60aff9d9f078f1d"
+    },
+    {
+      "path": "computations/check_p13_factor_primality.py",
+      "sha256": "71403895bd9a06a131a4ca84bf5d7260e7be8484488e9dfc7514364921581899"
+    },
+    {
+      "path": "scripts/independent_check.py",
+      "sha256": "f54b8dcbafd07178d18df8b3cd6b16652c30ae41ef7ee1c968d874a046f6bf0b"
+    },
+    {
+      "path": "computations/test_all_n_manifest.py",
+      "sha256": "9b4bab29a149941144b19ea17d4921dc2b2813a63e4228d5a3d99390c031259b"
+    },
+    {
+      "path": "computations/test_all_n_resume.py",
+      "sha256": "ee6157eca435ae3b55cba93cb6f1871e60b50314d540ae95f44169452d9ba2c3"
+    }
+  ],
+  "coverage": [
+    {
+      "id": "IP_FIN",
+      "lower": 1,
+      "upper": 100000006
+    },
+    {
+      "id": "IP_LOWER",
+      "lower": 100000000,
+      "upper": 1000000000
+    },
+    {
+      "id": "IP_LOW",
+      "lower": 1000000000,
+      "upper": 1000000000000
+    },
+    {
+      "id": "IP_MIDDLE",
+      "lower": 1000000000000,
+      "upper": 264000000000000000
+    },
+    {
+      "id": "H0",
+      "lower": 264000000000000000,
+      "upper": null
+    }
+  ],
+  "coverage_sha256": "b28760bca88b3f4a356f5212f5aa3711df00ee527606058a9aefc193e715ebe1",
+  "stages": [
+    "prefix",
+    "p13-primality",
+    "finite-independent",
+    "high-numerics",
+    "art005-release",
+    "coverage"
+  ]
+}

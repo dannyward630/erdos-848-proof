@@ -1,0 +1,358 @@
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xurl}
+\hypersetup{hidelinks}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newcommand{\NN}{\mathbb{N}}
+\newcommand{\Bseven}{B_7}
+\newcommand{\sha}[1]{\texttt{\nolinkurl{#1}}}
+
+\title{A Computer-Assisted Proof of Erd\H{o}s Problem 848}
+\author{Danny Ward\\
+\small Computer-assisted research and verification with OpenAI Codex}
+\date{11 August 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We prove that, for every positive integer $N$, the largest
+$A\subseteq\{1,\ldots,N\}$ for which $ab+1$ is nonsquarefree for all
+$a,b\in A$, including $a=b$, has cardinality
+$\lfloor(N+18)/25\rfloor$.  The proof combines an elementary lower
+construction, an independently checked exact coloring certificate through
+$100000006$, exact-rational structural interval certificates through
+$264000000000000000$, and an independently audited explicit high-range
+theorem.  We state the certificate semantics and trusted execution boundary
+explicitly.
+\end{abstract}
+
+\section{Statement and sharpness}
+
+For positive $N$, call $A\subseteq[N]=\{1,\ldots,N\}$ \emph{admissible}
+when $ab+1$ is nonsquarefree for all ordered pairs $a,b\in A$, including
+the diagonal.  Let $f(N)$ be the maximum cardinality of such a set and set
+\[
+  \Bseven(N)=\left\lfloor\frac{N+18}{25}\right\rfloor.
+\]
+
+\begin{theorem}
+For every positive integer $N$,
+\[
+  f(N)=\Bseven(N).
+\]
+\end{theorem}
+
+The theorem is the exact source-audited statement; it makes no uniqueness
+claim.  The residue class
+\[
+  A_7(N)=\{a\in[N]:a\equiv7\pmod{25}\}
+\]
+is admissible, since
+$ab+1\equiv7^2+1=50\equiv0\pmod{25}$ for
+$a,b\equiv7\pmod{25}$.  Writing
+$N=25q+r$, $0\le r<25$, shows
+$|A_7(N)|=q+\mathbf1_{r\ge7}=\Bseven(N)$.  Hence
+$f(N)\ge\Bseven(N)$.
+
+\section{Graph reduction}
+
+Let
+\[
+ D_N=\{a\in[N]:a^2+1\text{ is nonsquarefree}\}.
+\]
+Form $G_N$ on $D_N$, joining distinct $a,b$ when $ab+1$ is
+nonsquarefree.  The diagonal condition places every admissible element in
+$D_N$, and the remaining conditions say exactly that the set is a clique.
+Thus $f(N)=\omega(G_N)$.  A proper coloring of $G_N$ has squarefree
+products plus one within each color class, so
+\[
+ \chi(G_N)\le\Bseven(N)\quad\Longrightarrow\quad
+ f(N)\le\Bseven(N).
+\]
+
+\section{Exact finite theorem}
+
+Put $e_i=25i+6$.  Since $\Bseven(N)=i$ for
+$25i-18\le N\le25i+6$, an $i$-coloring at $e_i$ restricts to every
+prefix in that block.  There are no diagonal-eligible vertices below $7$.
+
+\subsection{Diagonal completeness}
+
+If $p^2\mid a^2+1$, then $p\ne2$, $p\equiv1\pmod4$, and
+$p^2\le a^2+1<(a+1)^2$, so $p\le a$.  For every prime
+$p\le100000006$ with $p\equiv1\pmod4$, the independent checker obtains
+both roots of $-1$ modulo $p$ by Tonelli--Shanks and uniquely Hensel-lifts
+them modulo $p^2$.  Marking the two progressions therefore reconstructs
+exactly all diagonal vertices.  The count is $10515898$.
+
+\subsection{Endpoint induction}
+
+The base stream supplies all $4000$ endpoint states through $100006$.
+At endpoint $e_i$ the checker colors every diagonal vertex through $e_i$ with
+a color below $i$ and checks every same-color pair.  The compact stream supplies
+$3996000$ later transitions.  Each transition introduces the two principal
+anchors, performs no swap or one old-bin swap of an $18$-anchor, and places
+the exact newly exposed outsiders.  Every changed bin is checked; unchanged
+bins retain the induction invariant.  Hence every endpoint through
+$e_{4000000}=100000006$ has the required coloring.
+
+The exhaustive replay checked $18049789$ base pair occurrences.
+It also checked all $14458371$ compact affected-bin pair occurrences,
+together with $1379312$ swaps and $2513387$ placements.
+
+\subsection{Exact factor leaves}
+
+Every accepted pair value is factored by small-prime division and
+deterministic Brent splitting.  The checker verifies the exact factor product
+and absence of repeated factors and exports every terminal leaf used by an
+accepted computation.  Miller--Rabin only proposes terminal leaves; all such
+leaves are independently certified below.
+
+There are $11108162$ distinct leaves, with maximum
+$m=9999932500113877$ and $L=\lfloor\sqrt m\rfloor=99999662$.
+An exact sieve proves the $2328675$ leaves at most $L$ prime.  Let $M$ be
+the primorial through $L$ and $P$ the product of the $8779487$ larger
+leaves.  Exact GMP arithmetic gives $\gcd(P,M)=1$.  A composite large leaf
+would have a prime divisor at most $L$, contradicting this gcd.  Thus all
+leaves are prime, and every accepted pair value is squarefree.
+
+The canonical leaf receipt has SHA-256
+\sha{4fc75b0ed263df81c07c5997c915511351ea61fff085d3ac95159c524ca9aad6}.
+The endpoint-401 mutation temporarily puts $18$ with $382$, for which
+$18\cdot382+1=13\cdot23^2$, and repairs the later state.  The exhaustive
+checker rejects it at endpoint 401; sampled checking does not.  Therefore
+\[
+f(N)\le\Bseven(N)\qquad(1\le N\le100000006).
+\]
+
+\section{Structural reduction}
+
+Fix a positive integer $N$ and put
+\[
+ A_{18}(N)=\{a\in[N]:a\equiv18\pmod{25}\},\qquad
+ O_N=D_N\setminus\bigl(A_7(N)\cup A_{18}(N)\bigr).
+\]
+The roots of $-1$ modulo $25$ are $7$ and $18$; call the elements of $O_N$
+outsiders.  For $z\in O_N$, let
+\[
+ w(z)=\min\{p:p\text{ prime and }p^2\mid z^2+1\}.
+\]
+An outsider has witness $13$ or at least $17$.  For a possible least
+witness $p$, write $W_{p,N}=\{z\in O_N:w(z)=p\}$ and
+$U_{>p,N}=\bigcup_{q>p}W_{q,N}$, with $q$ prime.  For $z\in W_{p,N}$, put
+\[
+ L_{z,N}=\{x\in A_7(N):zx+1\text{ is nonsquarefree}\},\qquad
+ R_{z,N}=\{y\in A_{18}(N):zy+1\text{ is nonsquarefree}\}.
+\]
+Join $x\in L_{z,N}$ and $y\in R_{z,N}$ when $xy+1$ is squarefree,
+obtaining a bipartite graph $H_{z,N}$.  Define
+\[
+ s_N(z)=|L_{z,N}|+|R_{z,N}|-\nu(H_{z,N}),\qquad
+ c_{>p,N}(z)=|\{u\in U_{>p,N}:zu+1\text{ is nonsquarefree}\}|,
+\]
+and $g_{p,N}(z)=s_N(z)+c_{>p,N}(z)$.
+
+\begin{lemma}[Structural rank]
+If $A\subseteq[N]$ is admissible and has globally least outsider witness $p$,
+then
+\[
+ |A|\le\max_{1\le t\le|W_{p,N}|}
+       \bigl(t+g_{p,N}^\downarrow(t)\bigr),
+\]
+where the scores are ordered decreasingly.
+\end{lemma}
+
+\begin{proof}
+Let $T=A\cap W_{p,N}$ and $t=|T|$.  For $z\in T$, the principal part of
+$A$ is an independent set in $H_{z,N}$, hence has size at most $s_N(z)$ by
+K\H{o}nig's theorem.  Every higher-witness outsider in $A$ is counted by
+$c_{>p,N}(z)$.  Thus
+$|A|\le t+\min_{z\in T}g_{p,N}(z)$.  The minimum on any $t$-element set is
+at most its $t$-th largest ambient score.
+\end{proof}
+
+This gives three exhaustive branches: no outsider, least witness $13$, and
+least witness at least $17$.  The no-outsider branch is the corresponding
+principal bipartite independent-set bound.
+
+\section{Exact structural interval certificates}
+
+Each certificate row is a closed interval $[A,B]$.  Positive census,
+collision, and Pell terms are evaluated at a uniform upper endpoint;
+subtractive gains are evaluated at their weakest endpoint; and translation
+remainders are maximized over the complete $25$-cycle.  The resulting exact
+integer or rational is compared with $\Bseven(A)$.  Since $\Bseven$ is
+nondecreasing, an accepted row proves every integer in its interval.
+
+The independently audited envelope inputs are exact residue censuses and CRT
+counts, the $p=17$ orientation cap, the $p\ge29$ domination bound, the
+no-outsider two-degree bound, the rank lemma above, and a generalized-Pell
+orbit bound.  For the latter, solutions are grouped into ideals of norm
+dividing the fixed discriminant; two generators of one ideal differ by a
+totally positive norm-one unit.  Such a nontrivial unit has trace at least
+$3$, so successive positive solutions grow by more than
+$(3+\sqrt5)/2>2$.  Every prime-count call satisfies the hypothesis of
+Hanson's strict bound $\pi(x)<1.25506x/\log x$; the computation replaces
+the logarithm by a weaker exact-rational lower bound.
+
+We make explicit one correction to the wording of the pinned
+\path{P13_RANK_ENVELOPE.md}.  For a translated pair $x,x+d\in[N]$, put
+$\Delta=d^2-4$.  If $x(x+d)+1=m\ell^2$ with $\ell>Y$, then
+$x(x+d)+1\le N^2+1<2N^2$, so $m<2N^2/Y^2$.  The ideal-orbit bound gives at
+most $\tau(|\Delta|)K(B)$ solutions for each fixed $m$, where
+$K(B)=1+\lceil\log_2(4B)\rceil$.  Hence the absolute count at the actual
+$N$ is at most
+\[
+ \frac{2\tau(|\Delta|)K(B)N^2}{Y^2}.
+\]
+After division by $M=N/25$, this is
+\[
+ \frac{50\tau(|\Delta|)K(B)N}{Y^2}
+ \le \frac{50\tau(|\Delta|)K(B)B}{Y^2},
+\]
+exactly the term used by the verifier.  The upstream prose instead passed
+from an absolute $B^2$ bound directly to the last display, which does not
+follow; the actual-$N$ derivation above is the required repair and changes no
+certificate value.
+
+The exact certified cover is:
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Range & Method \\
+\midrule
+$[10^8,10^9]$ & 37 exact $p=13$ rows and all other branches \\
+$[10^9,10^{12}]$ & exact-rational short-shift rows, all branches \\
+$[10^{12},264000000000000000]$ & 1255 exact-rational blocks \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The detailed formulas, endpoint choices, and row-soundness derivations are in
+the pinned ART-005 notes \path{P13_INTERVAL_100M_1B.md},
+\path{P17_EXACT_HYBRID.md}, \path{P13_DIRECT_RESIDUAL.md},
+\path{LOW_RANGE_DIRECT_ENVELOPES.md},
+\path{P13_RANK_ENVELOPE.md}, and
+\path{P17PLUS_AND_BASE_ENVELOPES.md}; their assembly is
+\path{ALL_N_THEOREM.md}, at immutable revision
+\sha{1afd7c722cae5ee7dd0fd1fde64427537394f749}.  The named paths resolve at
+\url{https://github.com/ipitchford/erdos-848-all-n/tree/1afd7c722cae5ee7dd0fd1fde64427537394f749/proofs}
+and are materialized locally by \texttt{REPRODUCE.md}.  A referee-oriented
+extraction of the load-bearing claims is
+\url{https://github.com/dannyward630/erdos-848-proof/blob/main/proof/structural-certificate-appendix.md}.
+
+The lower-$p=13$ transcript contains $1439686$ exact factorizations.  An
+independent parser checks every product back to $z^2+1$.  An exact sieve
+through $54392469$ and a separate primorial gcd prove all $1357591$
+distinct claimed factors prime, so the selected collision states are exact.
+The original shared Miller--Rabin routine is not a premise.
+
+The public release's 19-stage full replay regenerated the censuses, factor
+states, masks, exact-rational rows, mutations, sanitizers, and closed coverage
+in a fresh extraction.  It passed in $5523.791$ seconds.  The range-ledger
+digest is
+\sha{b28760bca88b3f4a356f5212f5aa3711df00ee527606058a9aefc193e715ebe1}.
+Together with the structural lemma and audited envelopes, this proves
+\[
+ f(N)\le\Bseven(N)\qquad
+ (100000000\le N\le264000000000000000).
+\]
+
+\section{Explicit high range and conclusion}
+
+Sothanaphan's independently audited explicit theorem proves the same upper
+bound for every $N\ge264000000000000000$.  Its exact-rational numerical
+claims have digest
+\sha{4726814d80fc63353a77c18bac8691bc917efd5ef1c7dcf10a14aed03674b215}.
+For clarity, put
+\[
+C_{\mathrm{quad}}=1-
+ \prod_{\substack{p\equiv1\pmod4\\p\ge13}}
+ \left(1-\frac2{p^2}\right).
+\]
+The corrected form of the note's misprinted Corollary 2 is the following:
+if $A\subseteq[N]$ is admissible, $N\ge264000000000000000$, and
+$A^*=A\setminus(A_7(N)\cup A_{18}(N))$, then
+\[
+ \frac{|A^*|}{N}\le\frac{23}{25}C_{\mathrm{quad}}+0.001973;
+\]
+if $A^*$ consists only of odd elements, then
+\[
+ \frac{|A^*|}{N}\le\frac{23}{50}C_{\mathrm{quad}}+0.001973.
+\]
+Indeed, admissibility on $(x,x)$ gives $\mu(x^2+1)=0$ for every
+$x\in A^*$.  Apply Proposition 2 of the note to the 23 nonprincipal
+classes modulo 25, or to their 23 odd lifts modulo 50, writing $q=25$ or
+$50$, respectively, and taking $R=\lceil(259/200)N^{2/3}\rceil$.  The main terms sum to at most
+$23(N/q+1)C_{\mathrm{quad}}$.  The pinned exact monotonicity audit bounds
+the remaining normalized error per class by $8.577\times10^{-5}$ at the
+threshold and thereafter, while
+$23C_{\mathrm{quad}}/N<3\times10^{-18}$.  Summing and rounding upward gives
+$0.001973$.  This proves the corrected corollary and identifies the diagonal
+step for which admissibility is required.  Every invocation in Theorem 1
+supplies that hypothesis.
+
+The finite interval $[1,100000006]$ overlaps the first structural interval
+$[100000000,10^9]$.  The remaining ranges share the endpoints $10^9$,
+$10^{12}$, and $264000000000000000$.  Their union is every positive
+integer.  Hence $f(N)\le\Bseven(N)$ for all positive $N$; the residue
+class construction gives the reverse inequality and proves the theorem.
+
+\section*{Decisive external references}
+
+\begin{itemize}
+\item Denis Hanson, ``On the Product of the Primes,'' \emph{Canadian
+Mathematical Bulletin} 15(1) (1972), 33--37, proves the strict prime-count
+estimate used above for every real $x>1$.
+\url{https://doi.org/10.4153/CMB-1972-007-7}.  The audited cached PDF is
+\path{sources/cache/hanson-1972-product-primes.pdf}, SHA-256
+\sha{ba350b2ce48e0ddb0751d8a60bcfe310683bc88df4fcf1b6a91029297688689c}.
+\item Nat Sothanaphan, \emph{An Explicit Threshold in Erd\H{o}s Problem
+\#848}, 24 March 2026, proves the upper bound used above for every
+$N\ge264000000000000000$.
+\url{https://drive.usercontent.google.com/download?id=1ujhm4_WYpgRV_rd1rJXIfHyvx16COEKe\&export=download\&confirm=t}.
+The audited cached PDF is
+\path{sources/cache/sothanaphan-2.64e17.pdf}, SHA-256
+\sha{8162113a571dc2283fc77de1cdf36e7abf424eeec952aa27cf82a4f44b3a796f}.
+\end{itemize}
+
+Exact retrieval and authentication commands are in \texttt{REPRODUCE.md}.
+
+\section{Assurance boundary}
+
+This is a computer-assisted proof using exact integer or rational arithmetic,
+authenticated certificate bytes, complete interval coverage, independent
+finite checking, batch primality certificates, and negative controls.
+Numerical evidence alone is not used as proof.  Reproduction commands and
+decisive hashes are in \texttt{REPRODUCE.md}; complete run identities and
+receipts are in \texttt{certificates/}.
+
+The research, implementation, drafting, and separated review lanes were
+carried out in a multi-agent OpenAI Codex workflow under Danny Ward's
+direction.  Here ``independent'' means a distinct implementation or internal
+review assignment, not external scholarly peer review.  This public proof
+candidate is unrefereed; full provenance is in \texttt{PROVENANCE.md}.
+
+The mathematical proof does not depend on the separate ART-006 Lean artifact.
+ART-006's own publication state reports a closed kernel theorem with axiom
+closure drawn only from
+\[
+ \texttt{propext},\qquad
+ \texttt{Classical.choice},\qquad
+ \texttt{Quot.sound}.
+\]
+Our source audit found that interface coherent and noncircular.  This is
+strong upstream evidence, but not the independent clean rebuild required
+here.  The repository's stricter completion protocol keeps formal
+certification open until a sufficiently provisioned Windows host builds the
+exact 30636-module provider from source, performs trust-zero replay, and
+captures the live \texttt{\#print axioms} and dependency audit.
+
+\end{document}

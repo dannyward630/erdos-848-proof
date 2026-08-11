@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "status": "unverified-pending-clean-replay",
+  "upstream": {
+    "url": "https://github.com/crabsatellite/erdos-848-squarefree-product.git",
+    "revision": "ede0151a35c86b6395cf67dd034811d22a92c7ba",
+    "tree": "5b1253061e916513036d30d8275c9aeaddb0e771",
+    "lean_tree": "6b9794fafddd3e7780c6a10a442f2e4e9dc73c1a"
+  },
+  "toolchain": {
+    "lean": "leanprover/lean4:v4.30.0-rc2",
+    "lean_commit": "3dc1a088b6d2d8eafe25a7cd7ec7b58d731bd7cc",
+    "lean_toolchain_sha256": "ce4c4e3d87434b9663f46de25ce34b48a0cf0d392e0a320a0787b4674a2d7b61",
+    "lake_manifest_sha256": "e016cb20d7f2f3b2bef02393f4b468fdd4f8fdeba9784aabb39e2889a87b5d4c",
+    "lakefile_sha256": "7479e2c461de9c48bcf32fc210ee2ce56d6d1a485c0a0d49d17f934082074912",
+    "mathlib_revision": "54e71fa9173471d591658f5380c46aaf050bbaae"
+  },
+  "sources": {
+    "problem_core_sha256": "3cc1f264149eaf99e18a04c8f57e4c6850c8571d0cb5b1de0fefdec087d5cfec",
+    "provider_sha256": "74de90d4d6e3d2d0594740c24072b9fab8fcb25c693360229d74ec7b0e8f582b",
+    "upstream_axiom_audit_sha256": "b0c280ff98b1ea5e5e91a0fc629e6f149dd2c28fbdc2be9ebac78f45c9cb8030"
+  },
+  "endpoint": {
+    "declaration": "Erdos848.PaperGeneratedCertificateProvider.all_N",
+    "type": "forall N, Erdos848.OriginalProblem848Statement N",
+    "provider_modules": 30636,
+    "publication_modules": 30638,
+    "publication_source_bytes": 2346175840,
+    "provider_module_list_sha256": "6cecc38e110c19024e2a397bd97fa06e31c12087366379e86e6c4e453df77643",
+    "publication_module_list_sha256": "51a073fd5cfe5eba801a1aa9cfa37a7917c14493283af13de41a46a21c420d67",
+    "upstream_axiom_endpoints": 15
+  },
+  "root_sources": {
+    "final_sha256": "74e36a06786ecda5b2bd5e3892b2513db7f19bb08084cc151319a67954f7edd6",
+    "axiom_audit_sha256": "fdbad8d9dc8f084b8fa3acb86a3ef395d792f5622c5b5dfe070bdab4398d42c6",
+    "test_sha256": "4cec461a3a4688c6bbc3e40ae302ae147857a7c3adb6656e23fca0ee72d8af26",
+    "runner_sha256": "a68e4b1e0363be69a6c9fe23e81badd2b129c8e06cbca2825c8d4a6205b35eb6"
+  },
+  "allowed_axioms": [
+    "propext",
+    "Classical.choice",
+    "Quot.sound"
+  ],
+  "minimum_host": {
+    "platform": "windows-x86_64",
+    "physical_memory_gib": 64,
+    "free_storage_gib": 200,
+    "build_memory_mib": 32768,
+    "guard_reserve_mib": 1024
+  }
+}

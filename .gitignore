@@ -1,0 +1,6 @@
+/external/
+/sources/cache/
+/tmp/
+/.lake/
+/lake-packages/
+__pycache__/

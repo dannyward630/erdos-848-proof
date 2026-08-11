@@ -1,0 +1,265 @@
+version: 8
+target:
+  id: P848
+  statement_ref: docs/problem-spec.md
+  status: open
+nodes:
+  - id: S0
+    kind: statement_audit
+    statement: The target is the source-faithful all-positive-N, diagonal-inclusive cardinality bound with benchmark B_7(N).
+    dependencies: []
+    source: [docs/problem-spec.md, docs/source-audit.md]
+    status: proved
+    formalized: true
+    explicit_constants: {}
+    key_original_step: Resolve the original positive-integer scope and the maintained clarification that a=b is included.
+  - id: E0
+    kind: elementary_lower_bound
+    statement: A_7(N) is admissible and has cardinality floor((N+18)/25) for every positive N.
+    dependencies: [S0]
+    source: [docs/problem-spec.md, docs/proof-ledger.md]
+    status: proved
+    formalized: true
+    explicit_constants: {modulus: 25, residue: 7}
+    key_original_step: For a,b congruent to 7 modulo 25, 25 divides ab+1.
+  - id: H0
+    kind: analytic_high_range
+    statement: The target upper bound holds for every N at least 264000000000000000.
+    dependencies: [S0]
+    source: [sources/cache/sothanaphan-2.64e17.pdf, docs/source-audit.md]
+    status: proved
+    formalized: false
+    explicit_constants:
+      threshold: 264000000000000000
+      source_sha256: 8162113a571dc2283fc77de1cdf36e7abf424eeec952aa27cf82a4f44b3a796f
+      numerical_claims_sha256: 4726814d80fc63353a77c18bac8691bc917efd5ef1c7dcf10a14aed03674b215
+    key_original_step: Combine exact progression and diagonal estimates in four exhaustive residue cases; use Corollary 2 only for admissible A.
+  - id: R0
+    kind: structural_reduction
+    statement: The no-outsider, least-witness-13, and least-witness-at-least-17 cases are exhaustive, and each outsider case obeys the stated order-statistic rank bound.
+    dependencies: [S0]
+    source: [external/erdos-848-all-n/proofs/ALL_N_THEOREM.md, docs/artifact-audit.md]
+    status: proved
+    formalized: false
+    explicit_constants: {least_outsider_witnesses: [13, 17]}
+    key_original_step: Bound every admissible set by t plus the t-th decreasing outsider score.
+  - id: RPELL
+    kind: repaired_generalized_pell_normalization
+    statement: The large-root translated-pair count normalizes to 50*tau(abs(Delta))*K(B)*B/Y^2 without dropping a factor B/N.
+    dependencies: [R0]
+    source: [proof/structural-certificate-appendix.md, proof/final-proof.md, docs/failed-lemmas.md]
+    status: proved
+    formalized: false
+    explicit_constants: {}
+    key_original_step: Use x and x+d at most N to obtain an actual-N square bound, divide by N/25, and only then replace N by B; FL-013 records the invalid endpoint-square shortcut.
+  - id: F10K
+    kind: exact_prefix_crosscheck
+    statement: The target holds for every 1 <= N <= 10000.
+    dependencies: [S0, E0]
+    source: [certificates/prefix-10000.json, docs/computation-spec.md]
+    status: proved
+    formalized: false
+    explicit_constants:
+      limit: 10000
+      certificate_sha256: 693ce882fb3f3786caf8eb502dd0677f42a4ed687adaa71a613b27ad7ef49727
+    key_original_step: Properly color every constant-benchmark prefix block and check every same-color product by independent factorization.
+  - id: IP_FIN
+    kind: exact_finite_coloring
+    statement: Exact coloring certificates prove the target for every 1 <= N <= 100000006.
+    dependencies: [S0, E0]
+    source: [proof/final-proof.md, computations/independent_check_finite_stream.cpp, certificates/finite-factor-leaves.json, certificates/finite-stream-replay-2026-08-10.md]
+    status: proved
+    formalized: false
+    explicit_constants: {upper: 100000006}
+    key_original_step: Reconstruct every diagonal vertex and maintain a proper coloring at every critical endpoint.
+  - id: IP_LOWER
+    kind: structural_exact_range
+    statement: All three R0 branches satisfy the target for every 100000000 <= N <= 1000000000.
+    dependencies: [R0, P13PRIME]
+    source: [external/erdos-848-all-n/proofs/P13_INTERVAL_100M_1B.md, external/erdos-848-all-n/proofs/P17_EXACT_HYBRID.md]
+    status: proved
+    formalized: false
+    explicit_constants: {lower: 100000000, upper: 1000000000, rows_p13: 37}
+    key_original_step: Regenerate exact censuses, factor states, masks, and interval-safe rank maxima.
+  - id: P13PRIME
+    kind: exact_batch_primality
+    statement: Every factor in the authenticated lower-p13 transcript is prime and every row multiplies exactly to z^2+1.
+    dependencies: [S0]
+    source: [computations/check_p13_factor_primality.py, certificates/p13-factor-primality.json, docs/computation-spec.md]
+    status: proved
+    formalized: false
+    explicit_constants:
+      transcript_rows: 1439686
+      max_factor: 2958540704271709
+      sieve_limit: 54392469
+      certificate_sha256: cb67a19e9edfc21206b6ec0c886bf6aa67b97a110296f7e20bf00bdf818cfc64
+    key_original_step: Sieve every prime through the square root of the largest claim and prove the large-factor product coprime to that primorial.
+  - id: IP_LOW
+    kind: structural_rational_range
+    statement: All three R0 branches satisfy the target for every 1000000000 <= N <= 1000000000000.
+    dependencies: [R0]
+    source: [external/erdos-848-all-n/proofs/P13_DIRECT_RESIDUAL.md, external/erdos-848-all-n/proofs/LOW_RANGE_DIRECT_ENVELOPES.md]
+    status: proved
+    formalized: false
+    explicit_constants: {lower: 1000000000, upper: 1000000000000}
+    key_original_step: Apply exact short-shift envelopes with conservative state, collision, Pell, and translation bounds.
+  - id: IP_MIDDLE
+    kind: structural_rational_range
+    statement: All three R0 branches satisfy the target for every 1000000000000 <= N <= 264000000000000000.
+    dependencies: [R0, RPELL]
+    source: [external/erdos-848-all-n/proofs/P13_RANK_ENVELOPE.md, external/erdos-848-all-n/proofs/P17PLUS_AND_BASE_ENVELOPES.md]
+    status: proved
+    formalized: false
+    explicit_constants: {lower: 1000000000000, upper: 264000000000000000, blocks: 1255}
+    key_original_step: Verify exact-rational rank envelopes and directed tails throughout every multiplicative block.
+  - id: F0
+    kind: exact_finite_range
+    statement: The target holds for every 1 <= N < 264000000000000000.
+    dependencies: [IP_FIN, IP_LOWER, IP_LOW, IP_MIDDLE]
+    source: [external/erdos-848-all-n/proofs/ALL_N_THEOREM.md]
+    status: proved
+    formalized: false
+    explicit_constants: {upper_exclusive: 264000000000000000}
+    key_original_step: Unite the finite coloring and all three structural branch certificates with no uncovered integer.
+  - id: C0
+    kind: coverage_bridge
+    statement: H0 and F0 cover every positive integer, with all component interval endpoints aligned.
+    dependencies: [H0, F0]
+    source: [external/erdos-848-all-n/audit/verify_all_n_coverage.py]
+    status: proved
+    formalized: false
+    explicit_constants:
+      range_ledger_sha256: b28760bca88b3f4a356f5212f5aa3711df00ee527606058a9aefc193e715ebe1
+    key_original_step: Check the finite/structural overlap and the shared endpoints 10^9, 10^12, and 2.64e17.
+  - id: CD0
+    kind: root_computational_certificate
+    statement: The canonical root manifest and primary checker replay every computational node and negative control in one fresh uninterrupted authenticated six-stage run.
+    dependencies: [IP_FIN, IP_LOWER, IP_LOW, IP_MIDDLE, H0, C0]
+    source: [certificates/all-n-manifest-v1.json, scripts/check_certificate.py, docs/computation-spec.md]
+    status: unverified
+    formalized: false
+    explicit_constants: {stages: 6}
+    key_original_step: Capture one fresh complete root-orchestrator receipt; resumed checkpoints are operational recovery only and cannot discharge this node.
+  - id: M0
+    kind: mathematical_all_n_theorem
+    statement: The source-faithful upper bound holds for every positive N.
+    dependencies: [S0, C0]
+    source: [proof/final-proof.md, proof/final-proof.tex]
+    status: proved
+    formalized: false
+    explicit_constants: {}
+    key_original_step: Apply C0 to N and combine the resulting upper bound with E0 for sharpness.
+  - id: VM0
+    kind: independent_mathematical_review
+    statement: Independent finite, structural, statement, and final mathematical reviewers find no unresolved gap in M0 or its decisive certificate dependencies.
+    dependencies: [M0]
+    source: [docs/final-referee.md, proof/structural-certificate-appendix.md, certificates/finite-stream-replay-2026-08-10.md]
+    status: proved
+    formalized: false
+    explicit_constants: {review_date: "2026-08-11"}
+    key_original_step: Recheck every load-bearing mathematical and computational bridge without accepting a proof-producing agent's self-certification.
+  - id: L0
+    kind: lean_statement_fidelity
+    statement: ART-006's final Lean theorem is equivalent to the source-faithful target.
+    dependencies: [S0]
+    source: [external/erdos-848-squarefree-product/lean4/Erdos848/ProblemCore.lean, docs/lean-audit.md]
+    status: proved
+    formalized: true
+    explicit_constants: {publication_modules: 30638}
+    key_original_step: Compare interval, pair quantifier, diagonal, squarefree predicate, and exact benchmark literally.
+  - id: L1
+    kind: lean_kernel_build
+    statement: The exact ART-006 source closure clean-builds and its final proof terms pass trust-zero replay.
+    dependencies: [LROOT]
+    source: [lean/run_completion_gate.py, docs/lean-audit.md, REPRODUCE.md]
+    status: unverified
+    formalized: true
+    explicit_constants: {documented_memory_mib: 32768}
+    key_original_step: Build from source and rerun every final proof term without trusting cached modules.
+  - id: LROOT
+    kind: lean_root_deliverable
+    statement: The tracked literal positive-N theorem, source lock, and axiom-audit entrypoint compile against the exact noncircular ART-006 provider.
+    dependencies: [LSEM]
+    source: [lean/source-lock.json, lean/Erdos848Completion/Final.lean, lean/Erdos848Completion/PublicationAxiomAudit.lean]
+    status: unverified
+    formalized: true
+    explicit_constants: {root_axiom_endpoints: 19}
+    key_original_step: Compile the root theorem and audit module during the clean trust-zero replay; static source presence is not enough.
+  - id: LSEM
+    kind: lean_certificate_semantics
+    statement: ART-006's five proof-carrying certificate families have noncircular soundness paths to the exact Hall and original statements.
+    dependencies: [L0]
+    source: [docs/artifact-audit.md, docs/lean-audit.md]
+    status: proved
+    formalized: true
+    explicit_constants: {certificate_families: 5}
+    key_original_step: Distinguish quantified local proof fields from an ambient theorem field and trace every family through its semantic consumer.
+  - id: L2
+    kind: lean_dependency_audit
+    statement: Every publication theorem has only the allowed axiom closure and audited declaration dependencies.
+    dependencies: [L1]
+    source: [external/erdos-848-squarefree-product/lean4/Erdos848/PublicationAxiomAudit.lean, docs/lean-audit.md]
+    status: unverified
+    formalized: true
+    explicit_constants: {allowed_axioms: [propext, Classical.choice, Quot.sound]}
+    key_original_step: Capture live print-axioms output and compare it with the independently enumerated acyclic import closure.
+  - id: V0
+    kind: independent_review
+    statement: Independent reviewers find no unresolved gap in both the proved mathematical theorem and the completed Lean build, axiom, and dependency audit.
+    dependencies: [VM0, CD0, L2, RCLEAN]
+    source: [docs/final-referee.md, docs/artifact-audit.md, docs/lean-audit.md]
+    status: unverified
+    formalized: false
+    explicit_constants: {}
+    key_original_step: Recheck every load-bearing bridge without relying on a proof-producing agent's self-certification.
+  - id: RCLEAN
+    kind: clean_reproduction
+    statement: The complete tracked mathematical, certificate, and Lean instructions succeed from a clean checkout at the declared pins.
+    dependencies: [CD0, L2]
+    source: [REPRODUCE.md]
+    status: unverified
+    formalized: false
+    explicit_constants: {}
+    key_original_step: Execute the success path in a clean environment and retain authenticated raw logs and receipts; expected-failure diagnostics do not count.
+edges:
+  - {from: S0, to: E0}
+  - {from: S0, to: H0}
+  - {from: S0, to: R0}
+  - {from: S0, to: F10K}
+  - {from: E0, to: F10K}
+  - {from: S0, to: IP_FIN}
+  - {from: E0, to: IP_FIN}
+  - {from: R0, to: RPELL}
+  - {from: R0, to: IP_LOWER}
+  - {from: S0, to: P13PRIME}
+  - {from: P13PRIME, to: IP_LOWER}
+  - {from: R0, to: IP_LOW}
+  - {from: R0, to: IP_MIDDLE}
+  - {from: RPELL, to: IP_MIDDLE}
+  - {from: IP_FIN, to: F0}
+  - {from: IP_LOWER, to: F0}
+  - {from: IP_LOW, to: F0}
+  - {from: IP_MIDDLE, to: F0}
+  - {from: H0, to: C0}
+  - {from: F0, to: C0}
+  - {from: IP_FIN, to: CD0}
+  - {from: IP_LOWER, to: CD0}
+  - {from: IP_LOW, to: CD0}
+  - {from: IP_MIDDLE, to: CD0}
+  - {from: H0, to: CD0}
+  - {from: C0, to: CD0}
+  - {from: C0, to: M0}
+  - {from: S0, to: M0}
+  - {from: M0, to: VM0}
+  - {from: S0, to: L0}
+  - {from: L0, to: LSEM}
+  - {from: LSEM, to: LROOT}
+  - {from: LROOT, to: L1}
+  - {from: L1, to: L2}
+  - {from: VM0, to: V0}
+  - {from: CD0, to: V0}
+  - {from: L2, to: V0}
+  - {from: CD0, to: RCLEAN}
+  - {from: L2, to: RCLEAN}
+  - {from: RCLEAN, to: V0}
+  - {from: V0, to: P848}
