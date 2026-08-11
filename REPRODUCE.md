@@ -384,6 +384,12 @@ terminal marker is:
 DIAGNOSTIC SOURCE CHECKPOINT SEGMENT PASSED index=1
 ```
 
+The canonical segment receipts establish byte integrity and enforce the exact
+declared compiler/runtime metadata. They are not independent execution
+attestations: retain the exact GitHub run identity and compile logs with any
+pilot result. A caller-created receipt and OLean pair is not source-build
+evidence.
+
 This marker is intentionally not `LEAN COMPLETION GATE PASSED`. The pilot does
 not cover the publication closure, root theorem, live axiom reports, or final
 dependency audit, and cannot promote any pending Lean or completion node.

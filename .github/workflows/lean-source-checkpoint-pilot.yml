@@ -152,13 +152,13 @@ jobs:
             /lean4/Erdos848/ProblemCore.lean
             /lean4/Erdos848/SharpnessCore.lean
 
-      - name: Download plan and authenticated genesis asset
+      - name: Download plan and same-run content-checked genesis asset
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: lean-checkpoint-*
           path: ${{ runner.temp }}/inputs
 
-      - name: Build child using only authenticated parent project OLeans
+      - name: Build child using only same-run parent project OLeans
         shell: pwsh
         run: |
           ./proof/diagnostics/build_lean_checkpoint_segment.ps1 `
@@ -184,6 +184,7 @@ jobs:
             echo '# Lean source checkpoint pilot'
             echo
             echo 'Two dependent source-built segments completed from fresh project-OLean genesis.'
+            echo 'Canonical receipts record byte integrity; the GitHub run and logs are the execution provenance.'
             echo 'This diagnostic does not run the full ART-006 closure, final theorem, trust-zero root replay, or axiom gate.'
             echo 'It cannot promote LROOT, L1, L2, RCLEAN, V0, or P848.'
           } >> "$GITHUB_STEP_SUMMARY"

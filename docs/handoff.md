@@ -120,11 +120,13 @@ preflight-only mode as a completion receipt.
 
 An unexecuted diagnostic-only checkpoint pilot is implemented on the isolated
 `lean-host-diagnostic` development line. It defines a canonical source-bound
-topological plan, strict segment receipts, a Windows builder that begins with
-zero project OLeans and accepts only authenticated parent source-built assets,
-and a two-job `ProblemCore -> SharpnessCore` workflow. Its local synthetic
-mutation suite passes. The Windows workflow has not yet been run at this exact
-implementation, so it is not execution evidence and changes no DAG status.
+topological plan, strict byte-integrity segment receipts, a Windows builder
+that begins with zero project OLeans and accepts only same-run content-checked
+parent assets, and a two-job `ProblemCore -> SharpnessCore` workflow. Receipts
+do not independently attest execution; the exact workflow run and logs supply
+that provenance. Its local synthetic mutation suite passes. The Windows
+workflow has not yet been run at this exact implementation, so it is not
+execution evidence and changes no DAG status.
 
 ## Decisive pins
 

@@ -83,10 +83,13 @@ def seal_args(plan: Path, source: Path, lock: Path, index: int, assets: Path,
         segment_index=index,
         asset_root=assets,
         parent_root=parents,
-        memory_mib=4096,
-        runner_os="synthetic-test",
-        runner_arch="x86_64",
-        lean_version="Lean 4.30.0 synthetic",
+        memory_mib=checkpoint.REQUIRED_MEMORY_MIB,
+        runner_os=checkpoint.REQUIRED_RUNNER_OS,
+        runner_arch=checkpoint.REQUIRED_RUNNER_ARCH,
+        lean_version=(
+            "Lean (version 4.30.0-rc2, x86_64-w64-windows-gnu, commit "
+            f"{checkpoint.REQUIRED_LEAN_COMMIT}, Release)"
+        ),
         output=assets / "receipt.json",
     )
 
@@ -179,6 +182,20 @@ def main() -> int:
         write_json(assets1 / "receipt.json", original_receipt)
 
         original_parent_receipt = checkpoint.exact_json(assets0 / "receipt.json")
+        for label, field, value in (
+            ("unaudited compile flags", ("command", "compile_flags"), ["--trust=999"]),
+            ("unaudited memory cap", ("command", "memory_mib"), 1),
+            ("unaudited runner OS", ("environment", "runner_os"), "synthetic"),
+            ("unaudited Lean runtime", ("environment", "lean_version"), "not Lean"),
+        ):
+            altered = copy.deepcopy(original_parent_receipt)
+            altered[field[0]][field[1]] = value
+            write_json(assets0 / "receipt.json", altered)
+            expect_rejected(
+                label,
+                lambda: checkpoint.verify_receipt(plan_path, assets0, [], 0),
+            )
+        write_json(assets0 / "receipt.json", original_parent_receipt)
         counterfeit_parent = copy.deepcopy(original_parent_receipt)
         counterfeit_parent["plan_sha256"] = "0" * 64
         write_json(assets0 / "receipt.json", counterfeit_parent)

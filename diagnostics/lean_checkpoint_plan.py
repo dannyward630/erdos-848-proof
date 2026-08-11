@@ -20,7 +20,15 @@ from typing import Any, Sequence
 SCHEMA = "erdos848-lean-source-checkpoint-plan-v1"
 RECEIPT_SCHEMA = "erdos848-lean-source-checkpoint-receipt-v1"
 STATUS = "diagnostic-only-not-an-art006-completion-receipt"
-RECEIPT_STATUS = "diagnostic-source-build-segment-passed"
+RECEIPT_STATUS = "diagnostic-byte-integrity-only-not-execution-attestation"
+REQUIRED_MEMORY_MIB = 24_576
+REQUIRED_COMPILE_FLAGS = [
+    "--trust=0", "-q", "-M", str(REQUIRED_MEMORY_MIB),
+    "-D", "compiler.postponeCompile=true",
+]
+REQUIRED_RUNNER_OS = "Windows"
+REQUIRED_RUNNER_ARCH = "X64"
+REQUIRED_LEAN_COMMIT = "3dc1a088b6d2d8eafe25a7cd7ec7b58d731bd7cc"
 HEX64 = re.compile(r"[0-9a-f]{64}")
 HEX40 = re.compile(r"[0-9a-f]{40}")
 MODULE = re.compile(r"Erdos848(?:\.[A-Za-z_][A-Za-z0-9_]*)+")
@@ -414,15 +422,23 @@ def validate_receipt_shape(receipt: Any) -> dict[str, Any]:
         exact_sha(module["olean_sha256"], "receipt OLean digest")
         exact_int(module["olean_bytes"], "receipt OLean bytes", minimum=1)
     exact_keys(receipt["command"], ["compile_flags", "memory_mib"], "receipt command")
-    if type(receipt["command"]["compile_flags"]) is not list:
-        raise CheckpointFailure("compile flags must be a list")
-    for item in receipt["command"]["compile_flags"]:
-        exact_string(item, "compile flag")
-    exact_int(receipt["command"]["memory_mib"], "memory MiB", minimum=1)
+    if receipt["command"]["compile_flags"] != REQUIRED_COMPILE_FLAGS:
+        raise CheckpointFailure("receipt does not record the exact audited compile flags")
+    if exact_int(receipt["command"]["memory_mib"], "memory MiB", minimum=1) \
+            != REQUIRED_MEMORY_MIB:
+        raise CheckpointFailure("receipt does not record the exact audited memory cap")
     exact_keys(receipt["environment"], ["runner_os", "runner_arch", "lean_version"],
                "receipt environment")
-    for key in receipt["environment"]:
-        exact_string(receipt["environment"][key], f"environment {key}")
+    if receipt["environment"]["runner_os"] != REQUIRED_RUNNER_OS:
+        raise CheckpointFailure("receipt runner OS is not the audited Windows host")
+    if receipt["environment"]["runner_arch"] != REQUIRED_RUNNER_ARCH:
+        raise CheckpointFailure("receipt runner architecture is not X64")
+    lean_version = exact_string(
+        receipt["environment"]["lean_version"], "environment Lean version"
+    )
+    if (not lean_version.startswith("Lean (version 4.30.0-rc2,")
+            or f"commit {REQUIRED_LEAN_COMMIT}," not in lean_version):
+        raise CheckpointFailure("receipt Lean version is not the audited runtime")
     exact_keys(receipt["genesis"], ["project_oleans_before_parent_import",
                                     "parent_segments_imported",
                                     "parent_oleans_imported"], "genesis record")
@@ -544,8 +560,7 @@ def seal_receipt(args: argparse.Namespace) -> dict[str, Any]:
         "parents": parents,
         "modules": modules,
         "command": {
-            "compile_flags": ["--trust=0", "-q", "-M", str(args.memory_mib),
-                              "-D", "compiler.postponeCompile=true"],
+            "compile_flags": REQUIRED_COMPILE_FLAGS,
             "memory_mib": args.memory_mib,
         },
         "environment": {

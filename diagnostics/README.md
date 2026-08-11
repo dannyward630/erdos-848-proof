@@ -23,9 +23,13 @@ ART-006 checkout.  After downloading only the pinned third-party Mathlib cache,
 it requires the project OLean inventory to be empty.  It then verifies and
 imports exactly the source-built OLeans named by the plan's parent segments,
 compiles the current sources with `--trust=0`, and emits only the current
-segment's OLeans plus a canonical receipt.  The receipt binds the plan, source
-pin, parent receipt hashes, source hashes, OLean hashes and lengths, compiler
-flags, runtime, and zero-OLean genesis observation.
+segment's OLeans plus a canonical byte-integrity receipt.  The receipt binds
+the plan, source pin, parent receipt hashes, source hashes, OLean hashes and
+lengths, exact compiler flags, exact runtime identity, and the claimed
+zero-OLean genesis observation.  A receipt does not by itself prove that its
+bytes were produced by the workflow: execution provenance remains in the
+exact GitHub run and logs.  The pilot therefore must not be used as a durable
+or independently self-authenticating source-build certificate.
 
 The manual `Lean source checkpoint pilot` workflow deliberately exercises only
 this two-module chain:
@@ -35,8 +39,8 @@ Erdos848.ProblemCore -> Erdos848.SharpnessCore
 ```
 
 The child job starts from another fresh checkout and receives `ProblemCore`
-only through the authenticated genesis artifact.  This demonstrates the
-checkpoint mechanism; it does not build the 30,638-module publication closure,
+only through the same-run, content-checked genesis artifact.  This exercises
+the checkpoint mechanism; it does not build the 30,638-module publication closure,
 compile the final root theorem, run the complete trust-zero replay, or print
 the publication axioms.
 
@@ -49,5 +53,5 @@ python3 -B diagnostics/test_lean_checkpoint_plan.py
 The suite uses a synthetic two-module Git repository and rejects noncanonical
 plans, Boolean indices, missing dependency edges, key reordering, source drift,
 parent receipt substitution, a self-consistent counterfeit parent chain,
-OLean mutation, unexpected files, symlinks, a missing parent, and a parent
-attached to the genesis segment.
+unaudited compiler/runtime metadata, OLean mutation, unexpected files,
+symlinks, a missing parent, and a parent attached to the genesis segment.
