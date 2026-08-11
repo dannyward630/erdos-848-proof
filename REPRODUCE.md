@@ -359,6 +359,35 @@ does not pin it. The exact cone, disk calculation, portability defects, and
 guarded failures are in `docs/artifact-audit.md` and `docs/lean-audit.md`.
 The unmodified `--direct-lean` kernel gate is Windows-only.
 
+### Diagnostic distributed source-build pilot
+
+The diagnostic checkpoint implementation is separately testable without Lean:
+
+```sh
+python3 -B diagnostics/test_lean_checkpoint_plan.py
+```
+
+Expected final line:
+
+```text
+ALL LEAN CHECKPOINT PILOT MUTATION CONTROLS PASSED
+```
+
+The manual GitHub Actions workflow
+`.github/workflows/lean-source-checkpoint-pilot.yml` then generates an exact
+two-segment plan and source-builds `Erdos848.ProblemCore` followed by
+`Erdos848.SharpnessCore` on two independent Windows checkouts. The second job
+may import project OLeans only from the verified first-segment artifact. Its
+terminal marker is:
+
+```text
+DIAGNOSTIC SOURCE CHECKPOINT SEGMENT PASSED index=1
+```
+
+This marker is intentionally not `LEAN COMPLETION GATE PASSED`. The pilot does
+not cover the publication closure, root theorem, live axiom reports, or final
+dependency audit, and cannot promote any pending Lean or completion node.
+
 Optional noninstalling APFS capacity diagnostic, which transiently uses about
 2.6 GiB and downloads one 448 MiB shard:
 

@@ -118,6 +118,14 @@ Do not retry progressively larger Lean caps on this Mac, substitute the
 published OLean cache for the required clean source build, or treat either
 preflight-only mode as a completion receipt.
 
+An unexecuted diagnostic-only checkpoint pilot is implemented on the isolated
+`lean-host-diagnostic` development line. It defines a canonical source-bound
+topological plan, strict segment receipts, a Windows builder that begins with
+zero project OLeans and accepts only authenticated parent source-built assets,
+and a two-job `ProblemCore -> SharpnessCore` workflow. Its local synthetic
+mutation suite passes. The Windows workflow has not yet been run at this exact
+implementation, so it is not execution evidence and changes no DAG status.
+
 ## Decisive pins
 
 - Original PDF: `bbf669b3ef3885fffa50830845aa6633c1673476462fb0e6a6f67a37478d3ff9`.
