@@ -238,7 +238,7 @@ for ($part = $StartPart; $part -le $EndPart; $part++) {
         }
         $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
         if ($hash -cne [string]$entry.cache_sha256) {
-            throw "cache SHA-256 mismatch for $relative: $hash"
+            throw "cache SHA-256 mismatch for ${relative}: $hash"
         }
         $logicalBytes += [uint64]$file.Length
         [void]$expectedMap.Remove($relative)

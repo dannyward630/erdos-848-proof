@@ -66,7 +66,7 @@ function Assert-Sha256 {
 
     $observed = (Get-FileHash -LiteralPath $LiteralPath -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($observed -cne $Expected) {
-        throw "SHA-256 mismatch for $LiteralPath: $observed"
+        throw "SHA-256 mismatch for ${LiteralPath}: $observed"
     }
     return $observed
 }

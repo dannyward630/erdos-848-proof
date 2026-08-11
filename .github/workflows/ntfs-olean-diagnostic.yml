@@ -9,8 +9,30 @@ permissions:
   contents: read
 
 jobs:
+  powershell-parse:
+    name: PowerShell-parser-smoke
+    runs-on: windows-2025
+    timeout-minutes: 5
+    steps:
+      - name: Check out diagnostic branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Parse every diagnostic PowerShell source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Get-ChildItem -LiteralPath diagnostics -File -Filter "*.ps1" |
+            Sort-Object FullName |
+            ForEach-Object {
+              [void][scriptblock]::Create(
+                (Get-Content -LiteralPath $_.FullName -Raw)
+              )
+              Write-Host "POWERSHELL PARSE PASSED $($_.Name)"
+            }
+
   problem-core-pilot:
     name: ProblemCore-source-cache-pilot
+    needs: powershell-parse
     runs-on: windows-2025
     timeout-minutes: 120
     steps:
@@ -33,6 +55,7 @@ jobs:
 
   measure:
     name: parts-${{ matrix.start }}-${{ matrix.end }}
+    needs: powershell-parse
     runs-on: windows-2025
     timeout-minutes: 330
     strategy:
