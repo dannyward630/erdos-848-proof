@@ -173,17 +173,46 @@ try {
         throw "project OLean existed before source pilot"
     }
 
-    $sourceOlean = Join-Path $scratch "ProblemCore.from-source.olean"
-    Invoke-Checked -Description "compile ProblemCore.lean from source" -Command {
-        & $lakeExe env lean -o $sourceOlean "Erdos848/ProblemCore.lean"
+    # The published cache was produced by the controlled builder, not by a
+    # default Lean invocation.  Lean serializes some command-line options into
+    # OLean, so probe the exact builder command at every historically used
+    # memory ceiling.  Repeat the 24,576-MiB case at a second output path to
+    # test path independence separately from cache equality.
+    $variantSpecs = @(
+        [ordered]@{ label = "memory-6144"; memory_mib = 6144 },
+        [ordered]@{ label = "memory-12288"; memory_mib = 12288 },
+        [ordered]@{ label = "memory-15360"; memory_mib = 15360 },
+        [ordered]@{ label = "memory-24576-a"; memory_mib = 24576 },
+        [ordered]@{ label = "memory-24576-b"; memory_mib = 24576 },
+        [ordered]@{ label = "memory-32768"; memory_mib = 32768 }
+    )
+    $compiledVariants = @()
+    foreach ($spec in $variantSpecs) {
+        $sourceOlean = Join-Path $scratch "ProblemCore.$($spec.label).olean"
+        $leanArgs = @(
+            "env", "lean", "--trust=0", "-q", "-M",
+            [string]$spec.memory_mib,
+            "-D", "compiler.postponeCompile=true",
+            "-o", $sourceOlean,
+            "Erdos848/ProblemCore.lean"
+        )
+        Invoke-Checked -Description "compile ProblemCore.lean $($spec.label)" -Command {
+            & $lakeExe @leanArgs
+        }
+        $info = Get-Item -LiteralPath $sourceOlean
+        $hash = (Get-FileHash -LiteralPath $sourceOlean -Algorithm SHA256).Hash.ToLowerInvariant()
+        $compiledVariants += [ordered]@{
+            label = [string]$spec.label
+            memory_mib = [int]$spec.memory_mib
+            output_path = [IO.Path]::GetFileName($sourceOlean)
+            output_bytes = [uint64]$info.Length
+            output_sha256 = $hash
+        }
     }
 }
 finally {
     Pop-Location
 }
-
-$sourceInfo = Get-Item -LiteralPath $sourceOlean
-$sourceHash = (Get-FileHash -LiteralPath $sourceOlean -Algorithm SHA256).Hash.ToLowerInvariant()
 
 $shardPath = Join-Path $scratch $ShardName
 $shardExtract = Join-Path $scratch "shard-075"
@@ -200,20 +229,31 @@ if ([uint64]$releaseInfo.Length -ne $ExpectedOleanBytes -or $releaseHash -cne $E
     throw "authenticated release ProblemCore.olean does not match its manifest entry"
 }
 
-$sourceBytes = [IO.File]::ReadAllBytes($sourceOlean)
 $releaseBytes = [IO.File]::ReadAllBytes($releaseOlean)
-$byteEqual = [System.Collections.StructuralComparisons]::StructuralEqualityComparer.Equals(
-    $sourceBytes,
-    $releaseBytes
+foreach ($variant in $compiledVariants) {
+    $variantPath = Join-Path $scratch $variant.output_path
+    $variantBytes = [IO.File]::ReadAllBytes($variantPath)
+    $variant["byte_for_byte_equal"] = [System.Collections.StructuralComparisons]::StructuralEqualityComparer.Equals(
+        $variantBytes,
+        $releaseBytes
+    )
+    $variant["matches_release_manifest"] = (
+        [uint64]$variant.output_bytes -eq $ExpectedOleanBytes -and
+        $variant.output_sha256 -ceq $ExpectedOleanSha256 -and
+        $variant.byte_for_byte_equal
+    )
+}
+$sameCapA = $compiledVariants | Where-Object { $_.label -ceq "memory-24576-a" }
+$sameCapB = $compiledVariants | Where-Object { $_.label -ceq "memory-24576-b" }
+$sameCapPathIndependent = (
+    $sameCapA.output_bytes -eq $sameCapB.output_bytes -and
+    $sameCapA.output_sha256 -ceq $sameCapB.output_sha256
 )
-$matchesExpected = (
-    [uint64]$sourceInfo.Length -eq $ExpectedOleanBytes -and
-    $sourceHash -ceq $ExpectedOleanSha256 -and
-    $byteEqual
-)
+$matchingVariants = @($compiledVariants | Where-Object { $_.matches_release_manifest })
+$matchesExpected = $matchingVariants.Count -gt 0
 
 $report = [ordered]@{
-    schema_version = 1
+    schema_version = 2
     github = [ordered]@{
         repository = [string]$env:GITHUB_REPOSITORY
         run_id = [string]$env:GITHUB_RUN_ID
@@ -240,11 +280,15 @@ $report = [ordered]@{
         sha256 = $ExpectedOleanSha256
     }
     source_compilation = [ordered]@{
-        output_bytes = [uint64]$sourceInfo.Length
-        output_sha256 = $sourceHash
+        exact_builder_arguments = @(
+            "--trust=0", "-q", "-M", "<memory_mib>",
+            "-D", "compiler.postponeCompile=true"
+        )
+        variants = $compiledVariants
         release_output_bytes = [uint64]$releaseInfo.Length
         release_output_sha256 = $releaseHash
-        byte_for_byte_equal = $byteEqual
+        matching_variant_labels = @($matchingVariants | ForEach-Object { $_.label })
+        repeated_24576_path_independent = $sameCapPathIndependent
         matches_release_manifest = $matchesExpected
     }
 }
@@ -255,11 +299,12 @@ if (-not (Test-Path -LiteralPath $outputParent)) {
 }
 $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $outputFull -Encoding utf8NoBOM
 Write-Host "REPORT $outputFull"
-Write-Host "source_olean_bytes=$($sourceInfo.Length)"
-Write-Host "source_olean_sha256=$sourceHash"
+foreach ($variant in $compiledVariants) {
+    Write-Host "variant=$($variant.label) memory_mib=$($variant.memory_mib) bytes=$($variant.output_bytes) sha256=$($variant.output_sha256) release_equal=$($variant.byte_for_byte_equal)"
+}
 Write-Host "release_olean_bytes=$($releaseInfo.Length)"
 Write-Host "release_olean_sha256=$releaseHash"
-Write-Host "byte_for_byte_equal=$byteEqual"
+Write-Host "repeated_24576_path_independent=$sameCapPathIndependent"
 Write-Host "matches_release_manifest=$matchesExpected"
 if ($matchesExpected) {
     Write-Host "PROBLEMCORE SOURCE-CACHE DETERMINISM PILOT PASSED"

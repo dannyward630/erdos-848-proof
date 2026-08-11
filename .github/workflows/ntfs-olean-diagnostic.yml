@@ -56,6 +56,7 @@ jobs:
   measure:
     name: parts-${{ matrix.start }}-${{ matrix.end }}
     needs: powershell-parse
+    if: ${{ !contains(github.event.head_commit.message, '[pilot-only]') }}
     runs-on: windows-2025
     timeout-minutes: 330
     strategy:
@@ -96,6 +97,7 @@ jobs:
   aggregate:
     name: aggregate-exact-allocation
     needs: measure
+    if: ${{ !contains(github.event.head_commit.message, '[pilot-only]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
