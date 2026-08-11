@@ -831,20 +831,79 @@ def run_lean_commit_guarded(
     return log_path, {"peak_working_set_bytes": peak, "working_set_trims": trims}
 
 
-def runtime_binaries(runtime_root: Path, runtime_archive: Path) -> tuple[Path, Path]:
-    if sha256_file(runtime_archive) != RUNTIME_ARCHIVE_SHA256:
+def authenticate_runtime_tree(
+    runtime_root: Path, runtime_archive: Path, expected_archive_sha256: str,
+) -> tuple[Path, Path, dict[str, Any]]:
+    """Bind every extracted runtime byte to the authenticated release ZIP."""
+    if sha256_file(runtime_archive) != expected_archive_sha256:
         raise CanaryFailure("Lean runtime archive SHA-256 mismatch")
-    lean = [
-        path for path in runtime_root.rglob("lean.exe")
-        if path.is_file() and not path.is_symlink() and path.parent.name == "bin"
-    ]
-    lake = [
-        path for path in runtime_root.rglob("lake.exe")
-        if path.is_file() and not path.is_symlink() and path.parent.name == "bin"
-    ]
+    expected: dict[str, tuple[int, str]] = {}
+    with zipfile.ZipFile(runtime_archive, "r") as bundle:
+        for info in bundle.infolist():
+            if info.is_dir():
+                continue
+            relative = safe_posix_path(info.filename, "runtime archive member").as_posix()
+            if relative in expected:
+                raise CanaryFailure(f"duplicate runtime archive member: {relative}")
+            if ((info.external_attr >> 16) & 0o170000) == 0o120000:
+                raise CanaryFailure(f"runtime archive contains a symlink: {relative}")
+            digest = hashlib.sha256()
+            copied = 0
+            with bundle.open(info, "r") as source:
+                for block in iter(lambda: source.read(1 << 20), b""):
+                    digest.update(block)
+                    copied += len(block)
+            if copied != info.file_size:
+                raise CanaryFailure(f"runtime member length mismatch: {relative}")
+            expected[relative] = (copied, digest.hexdigest())
+
+    actual: dict[str, Path] = {}
+    for path in runtime_root.rglob("*"):
+        attributes = getattr(os.lstat(path), "st_file_attributes", 0)
+        if path.is_symlink() or attributes & FILE_ATTRIBUTE_REPARSE_POINT:
+            raise CanaryFailure(f"runtime tree contains a reparse point: {path}")
+        if path.is_dir():
+            continue
+        if not path.is_file():
+            raise CanaryFailure(f"runtime tree contains a nonregular entry: {path}")
+        relative = path.relative_to(runtime_root).as_posix()
+        safe_posix_path(relative, "extracted runtime path")
+        if relative in actual:
+            raise CanaryFailure(f"duplicate extracted runtime path: {relative}")
+        actual[relative] = path
+    if set(actual) != set(expected):
+        difference = sorted(set(actual) ^ set(expected))
+        raise CanaryFailure(f"extracted runtime inventory mismatch: {difference[:5]}")
+
+    inventory = hashlib.sha256()
+    for relative in sorted(expected):
+        size, digest = expected[relative]
+        path = actual[relative]
+        if path.stat().st_size != size or sha256_file(path) != digest:
+            raise CanaryFailure(f"extracted runtime content mismatch: {relative}")
+        inventory.update(f"{relative}\t{size}\t{digest}\n".encode("ascii"))
+
+    lean = [path for relative, path in actual.items() if relative.endswith("/bin/lean.exe")]
+    lake = [path for relative, path in actual.items() if relative.endswith("/bin/lake.exe")]
     if len(lean) != 1 or len(lake) != 1 or lean[0].parent != lake[0].parent:
         raise CanaryFailure("could not resolve one authenticated Lean/Lake runtime")
-    return lean[0].resolve(strict=True), lake[0].resolve(strict=True)
+    return (
+        lean[0].resolve(strict=True),
+        lake[0].resolve(strict=True),
+        {
+            "files": len(expected),
+            "bytes": sum(item[0] for item in expected.values()),
+            "inventory_sha256": inventory.hexdigest(),
+        },
+    )
+
+
+def runtime_binaries(
+    runtime_root: Path, runtime_archive: Path,
+) -> tuple[Path, Path, dict[str, Any]]:
+    return authenticate_runtime_tree(
+        runtime_root, runtime_archive, RUNTIME_ARCHIVE_SHA256
+    )
 
 
 def endpoint_expected_paths(project_root: Path, modules: Iterable[str]) -> dict[str, Path]:
@@ -903,6 +962,36 @@ def run_self_tests() -> int:
                 pass
             else:
                 raise AssertionError("duplicate ZIP member was accepted")
+        runtime_archive = root / "runtime.zip"
+        runtime_root = root / "runtime"
+        runtime_root.mkdir()
+        runtime_files = {
+            "lean-4.30.0-rc2-windows/bin/lean.exe": b"lean",
+            "lean-4.30.0-rc2-windows/bin/lake.exe": b"lake",
+            "lean-4.30.0-rc2-windows/lib/lean/library.dat": b"library",
+        }
+        with zipfile.ZipFile(
+            runtime_archive, "w", compression=zipfile.ZIP_DEFLATED
+        ) as bundle:
+            for relative, contents in runtime_files.items():
+                bundle.writestr(relative, contents)
+                destination = runtime_root.joinpath(*PurePosixPath(relative).parts)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_bytes(contents)
+        _, _, runtime_inventory = authenticate_runtime_tree(
+            runtime_root, runtime_archive, sha256_file(runtime_archive)
+        )
+        assert runtime_inventory["files"] == len(runtime_files)
+        mutated = runtime_root / "lean-4.30.0-rc2-windows/bin/lean.exe"
+        mutated.write_bytes(b"hostile lean")
+        try:
+            authenticate_runtime_tree(
+                runtime_root, runtime_archive, sha256_file(runtime_archive)
+            )
+        except CanaryFailure:
+            pass
+        else:
+            raise AssertionError("mutated extracted runtime was accepted")
     print("CACHED LEAN CANARY SELF-TESTS PASSED")
     return 0
 
@@ -941,7 +1030,9 @@ def main() -> int:
     runtime_archive = args.runtime_archive.resolve(strict=True)
     root_before = gate.root_snapshot(require_clean=True)
     lock = gate.read_lock()
-    lean_executable, lake_executable = runtime_binaries(runtime_root, runtime_archive)
+    lean_executable, lake_executable, runtime_inventory = runtime_binaries(
+        runtime_root, runtime_archive
+    )
     runtime_bin = lean_executable.parent
     base_env = gate.sanitized_lean_environment()
     base_env["PATH"] = str(runtime_bin) + os.pathsep + base_env.get("PATH", "")
@@ -1190,6 +1281,7 @@ def main() -> int:
             "lean_commit": LEAN_COMMIT,
             "runtime_archive": RUNTIME_ARCHIVE_NAME,
             "runtime_archive_sha256": RUNTIME_ARCHIVE_SHA256,
+            "runtime_inventory": runtime_inventory,
             "observed_lean_version": version,
             "lean_executable": str(lean_executable),
             "lake_executable": str(lake_executable),
