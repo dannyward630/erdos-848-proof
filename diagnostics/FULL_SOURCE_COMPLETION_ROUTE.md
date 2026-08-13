@@ -71,6 +71,13 @@ Current platform limits are documented at:
 The workflow is prepared but has **not been executed**.  Its presence records
 the exact next route and promotes no proof-DAG node.
 
+As of 13 August 2026, the maintainer has confirmed that no qualifying host is
+available. A live account and environment audit found zero registered
+self-hosted runners and no configured cloud or VM route. The workflow is
+published so an external verifier can execute the exact reviewed procedure;
+its unexecuted state is the sole external infrastructure boundary for the
+remaining formal nodes.
+
 Use one isolated Windows x86-64 self-hosted runner with at least 64 GiB RAM
 and 200 GiB genuinely free SSD storage.  Give exactly that runner the custom
 label `erdos848-art006`, pre-create a large-volume directory such as

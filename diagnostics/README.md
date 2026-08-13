@@ -1,9 +1,23 @@
 # Lean host diagnostics
 
-These programs investigate whether the pending ART-006 clean source build can
-be executed on standard GitHub-hosted Windows machines.  They are diagnostics,
-not proof receipts.  A successful diagnostic must not promote `LROOT`, `L1`,
-`L2`, `RCLEAN`, `V0`, or `P848`.
+These programs investigate the resources, cache behavior, runtime provenance,
+and checkpoint designs relevant to the pending ART-006 clean source build.
+They are diagnostics, not proof receipts. A successful diagnostic must not
+promote `LROOT`, `L1`, `L2`, `RCLEAN`, `V0`, or `P848`.
+
+## Execution map
+
+| Experiment | Exact result | Boundary |
+|---|---|---|
+| NTFS OLean census, run [`31529016420`](https://github.com/dannyward630/erdos-848-proof/actions/runs/31529016420) | All 30,638 authenticated cached OLeans occupy 129,476,102,424 logical bytes and 52,860,335,936 NTFS-allocated bytes | Resource evidence only |
+| ProblemCore source/cache pilot, run [`31538242639`](https://github.com/dannyward630/erdos-848-proof/actions/runs/31538242639) | A clean source build and the release cache produce different OLean bytes; recorded as FL-014 | The cache cannot substitute for a clean source build |
+| Two-module source checkpoint, run [`31541505450`](https://github.com/dannyward630/erdos-848-proof/actions/runs/31541505450) | `ProblemCore -> SharpnessCore` built from zero project OLeans and its same-run byte receipts passed | Two modules only; the pilot is not safely scalable as written |
+| Cache-backed trust-zero canary, run [`31707223170`](https://github.com/dannyward630/erdos-848-proof/actions/runs/31707223170) | Authenticated every cache shard and dependency, then failed closed before Lean on a nonexistent Lake search-path entry; the bounded portability repair is locally tested but unexecuted | Uses published OLeans and can never discharge the clean-build nodes |
+| Full-source completion workflow | Implementation and fail-closed receipt path independently reviewed | Unexecuted; requires the unavailable large Windows host |
+
+The maintainer has confirmed that no qualifying Windows host is available.
+Issue [#2](https://github.com/dannyward630/erdos-848-proof/issues/2)
+therefore remains the public external-infrastructure boundary.
 
 ## Genesis-anchored source checkpoint pilot
 
@@ -55,3 +69,18 @@ plans, Boolean indices, missing dependency edges, key reordering, source drift,
 parent receipt substitution, a self-consistent counterfeit parent chain,
 unaudited compiler/runtime metadata, OLean mutation, unexpected files,
 symlinks, a missing parent, and a parent attached to the genesis segment.
+
+## Reviewed full-source route
+
+[`FULL_SOURCE_COMPLETION_ROUTE.md`](FULL_SOURCE_COMPLETION_ROUTE.md) and
+`.github/workflows/art006-full-source-completion.yml` specify the only current
+completion route: one isolated Windows x64 host with at least 64 GiB RAM and
+200 GiB free SSD. The gate is bound to an exact authenticated Lean archive and
+Lean/Lake executable hashes, rechecks zero project OLeans after cache
+bootstrap, builds the entire provider from source, and emits a strictly
+validated receipt for a second-job audit.
+
+That workflow has not run. Its presence on the default branch is future
+verification infrastructure, not a Lean theorem result. Historical diagnostic
+workflows are manual-only to avoid spending hosted-runner resources on ordinary
+documentation changes.

@@ -377,12 +377,17 @@ python -B lean/run_completion_gate.py `
 ```
 
 The runner refuses a non-Windows host, a dirty or mispinned source tree,
-project OLeans present either before or after cache bootstrap, insufficient resources, a moving dependency, a
-forbidden axiom, a missing endpoint report, source drift, or a nonempty receipt
-directory. It never runs `lake update`. It compiles the literal theorem in
+project OLeans present either before or after cache bootstrap, insufficient
+resources, a moving dependency, a forbidden axiom, a missing endpoint report,
+source drift, or a nonempty receipt directory. It never runs `lake update`. It
+compiles the literal theorem in
 `lean/Erdos848Completion/Final.lean`, runs trust zero over the complete import
 closure, checks all 15 upstream plus four root axiom reports, and records the
 dependency output. Only the full success path prints:
+
+Lake may report nonexistent build directories for packages that export no Lean
+modules. The runner omits those inert entries from its explicit `LEAN_PATH`;
+every existing entry remains subject to the namespace-provenance audit.
 
 ```text
 LEAN COMPLETION GATE PASSED
@@ -393,11 +398,11 @@ copied into `lean/receipts/` or used to promote `L1`, `L2`, or `V0`.
 
 The tracked manual workflow wraps that exact gate for a uniquely labelled,
 isolated self-hosted runner. It is currently unexecuted and therefore supplies
-no proof evidence or node promotion. The workflow file must first exist on the default
-branch because GitHub dispatches `workflow_dispatch` only for workflows on the
-default branch. Register exactly one Windows/X64 runner with the custom label
-`erdos848-art006`, pre-create `D:\erdos848-verification` on the large-volume
-disk, and dispatch:
+no proof evidence or node promotion. No qualifying host is currently available
+to the maintainer. If an external verifier supplies one, register exactly one
+Windows/X64 runner with the custom label `erdos848-art006`, pre-create
+`D:\erdos848-verification` on the large-volume disk, and dispatch from the
+default branch:
 
 ```sh
 gh workflow run art006-full-source-completion.yml \
