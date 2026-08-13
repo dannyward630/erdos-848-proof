@@ -64,7 +64,7 @@ AUDIT_SOURCE_SHA256 = (
     'fdbad8d9dc8f084b8fa3acb86a3ef395d792f5622c5b5dfe070bdab4398d42c6'
 )
 TEST_SOURCE_SHA256 = (
-    '21de8459302a5590d5a8b530a05a9ba3bf62d178154750795145f7344b4c5ede'
+    'c624307ae322e2d5ef9e412db893622ee7f248e41b7ddd6ae395d2829636ee7e'
 )
 ALLOWED_AXIOMS = ('propext', 'Classical.choice', 'Quot.sound')
 ENDPOINTS = (
@@ -251,6 +251,68 @@ def require_no_reparse_ancestors(path: Path) -> None:
         current = parent
 
 
+def resolve_lake_module_path(
+    raw_entry: str, allowed_roots: Sequence[Path],
+) -> Path | None:
+    """Resolve one Lake path, omitting only an exactly nonexistent entry."""
+
+    candidate = Path(raw_entry)
+    if not candidate.is_absolute():
+        raise GateFailure(f'Lake produced a relative LEAN_PATH entry: {raw_entry!r}')
+    if '..' in candidate.parts:
+        raise GateFailure(f'Lake produced a noncanonical LEAN_PATH entry: {raw_entry!r}')
+    lexical_roots = tuple(Path(root) for root in allowed_roots)
+    stop = next(
+        (
+            root for root in lexical_roots
+            if candidate == root or root in candidate.parents
+        ),
+        None,
+    )
+    if stop is None:
+        raise GateFailure(f'Lake produced an out-of-root LEAN_PATH entry: {raw_entry!r}')
+    missing = False
+    current = candidate
+    while True:
+        try:
+            metadata = os.lstat(current)
+        except FileNotFoundError:
+            if current == candidate:
+                missing = True
+        except OSError as error:
+            raise GateFailure(
+                f'Lake LEAN_PATH entry could not be inspected: '
+                f'{raw_entry!r}: {error}'
+            ) from error
+        else:
+            attributes = getattr(metadata, 'st_file_attributes', 0)
+            if stat.S_ISLNK(metadata.st_mode) or (
+                attributes & FILE_ATTRIBUTE_REPARSE_POINT
+            ):
+                raise GateFailure(
+                    f'Lake produced a reparse-point LEAN_PATH entry: {current}'
+                )
+        if current == stop:
+            break
+        parent = current.parent
+        if parent == current:
+            raise GateFailure(f'Lake LEAN_PATH entry escaped its allowed root: {candidate}')
+        current = parent
+    if missing:
+        print(f'OMITTED NONEXISTENT LAKE MODULE PATH {candidate}', flush=True)
+        return None
+    try:
+        entry = candidate.resolve(strict=True)
+    except OSError as error:
+        raise GateFailure(
+            f'Lake produced an unavailable LEAN_PATH entry: '
+            f'{raw_entry!r}: {error}'
+        ) from error
+    if not entry.is_dir():
+        raise GateFailure(f'Lake produced an unsafe LEAN_PATH entry: {entry}')
+    return entry
+
+
 def resolved_runtime_executables(
     runtime_bin: Path, base_env: dict[str, str],
 ) -> tuple[Path, Path, Path]:
@@ -408,23 +470,11 @@ def resolved_lean_environment(
     for raw_entry in raw_path.split(os.pathsep):
         if not raw_entry:
             raise GateFailure('Lake produced an empty LEAN_PATH entry')
-        candidate = Path(raw_entry)
-        if candidate.is_symlink():
-            raise GateFailure(f'Lake produced an unsafe LEAN_PATH entry: {candidate}')
-        if not candidate.exists():
-            # Lake may include package build directories for packages that do
-            # not export Lean modules.  A nonexistent entry cannot resolve a
-            # module; omit it from the explicit environment used below.
+        entry = resolve_lake_module_path(
+            raw_entry, (lean4, lake_executable.parent.parent),
+        )
+        if entry is None:
             continue
-        try:
-            entry = candidate.resolve(strict=True)
-        except OSError as error:
-            raise GateFailure(
-                f'Lake produced an unavailable LEAN_PATH entry: '
-                f'{raw_entry!r}: {error}'
-            ) from error
-        if not entry.is_dir():
-            raise GateFailure(f'Lake produced an unsafe LEAN_PATH entry: {entry}')
         if entry in entries:
             raise GateFailure(f'Lake produced a duplicate LEAN_PATH entry: {entry}')
         entries.append(entry)

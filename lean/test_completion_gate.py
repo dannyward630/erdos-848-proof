@@ -206,6 +206,7 @@ def main() -> int:
             future_path = base / "post-cache-olean"
             project_path.mkdir()
             captured_commands: list[tuple[str, ...]] = []
+            lake_path_entries = [project_path, future_path]
             original_capture = runner.capture
 
             def fake_lake_capture(
@@ -216,7 +217,7 @@ def main() -> int:
                 captured_commands.append(tuple(command))
                 if "shutil.which" in command[-1]:
                     return str(lean)
-                return os.pathsep.join((str(project_path), str(future_path)))
+                return os.pathsep.join(str(path) for path in lake_path_entries)
 
             runner.capture = fake_lake_capture
             try:
@@ -227,7 +228,85 @@ def main() -> int:
                     raise RuntimeError(
                         "nonexistent Lake module path was not omitted"
                     )
+                frozen_entries = resolved_entries
                 future_path.mkdir()
+                if frozen_entries != (project_path.resolve(strict=True),):
+                    raise RuntimeError("omitted Lake path was not frozen")
+                captured_commands.clear()
+                resolved_lean, resolved_entries = runner.resolved_lean_environment(
+                    base, {"PATH": str(runtime_bin)}, lake
+                )
+
+                lake_path_entries[:] = [Path("relative-module-path")]
+                expect_rejected(
+                    runner,
+                    lambda: runner.resolved_lean_environment(
+                        base, {"PATH": str(runtime_bin)}, lake
+                    ),
+                    "relative Lake module path",
+                )
+                module_file = base / "module-file"
+                module_file.write_text("not a directory\n", encoding="utf-8")
+                lake_path_entries[:] = [module_file]
+                expect_rejected(
+                    runner,
+                    lambda: runner.resolved_lean_environment(
+                        base, {"PATH": str(runtime_bin)}, lake
+                    ),
+                    "file-valued Lake module path",
+                )
+                lake_path_entries[:] = [project_path, project_path]
+                expect_rejected(
+                    runner,
+                    lambda: runner.resolved_lean_environment(
+                        base, {"PATH": str(runtime_bin)}, lake
+                    ),
+                    "duplicate Lake module path",
+                )
+                broken_link = base / "broken-module-link"
+                broken_link.symlink_to(base / "missing-link-target", target_is_directory=True)
+                lake_path_entries[:] = [broken_link]
+                expect_rejected(
+                    runner,
+                    lambda: runner.resolved_lean_environment(
+                        base, {"PATH": str(runtime_bin)}, lake
+                    ),
+                    "broken symlink Lake module path",
+                )
+                lake_path_entries[:] = [base / "missing-project-root"]
+                _, missing_entries = runner.resolved_lean_environment(
+                    base, {"PATH": str(runtime_bin)}, lake
+                )
+                expect_rejected(
+                    runner,
+                    lambda: runner.require_namespace_provenance(
+                        missing_entries,
+                        project_root=project_path,
+                        completion_root=None,
+                    ),
+                    "omitted exact project module root",
+                )
+
+                denied_path = base / "denied-module-path"
+                denied_path.mkdir()
+                original_lstat = runner.os.lstat
+                def deny_lstat(path: object) -> os.stat_result:
+                    if Path(path) == denied_path:
+                        raise PermissionError("simulated inspection denial")
+                    return original_lstat(path)
+                runner.os.lstat = deny_lstat
+                lake_path_entries[:] = [denied_path]
+                try:
+                    expect_rejected(
+                        runner,
+                        lambda: runner.resolved_lean_environment(
+                            base, {"PATH": str(runtime_bin)}, lake
+                        ),
+                        "uninspectable Lake module path",
+                    )
+                finally:
+                    runner.os.lstat = original_lstat
+                lake_path_entries[:] = [project_path, future_path]
                 captured_commands.clear()
                 resolved_lean, resolved_entries = runner.resolved_lean_environment(
                     base, {"PATH": str(runtime_bin)}, lake

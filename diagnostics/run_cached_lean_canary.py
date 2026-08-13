@@ -302,27 +302,14 @@ def resolved_authenticated_lake_environment(
             raise CanaryFailure(
                 "resolve-authenticated-lake-path: empty LEAN_PATH entry"
             )
-        candidate = Path(raw_entry)
-        if candidate.is_symlink():
-            raise CanaryFailure(
-                f"resolve-authenticated-lake-path: unsafe LEAN_PATH entry: {candidate}"
-            )
-        if not candidate.exists():
-            # Lake can list build directories for packages with no exported
-            # Lean modules.  Missing entries cannot resolve modules and are
-            # deliberately omitted from the explicit environment.
-            continue
         try:
-            entry = candidate.resolve(strict=True)
-        except OSError as error:
-            raise CanaryFailure(
-                "resolve-authenticated-lake-path: unavailable LEAN_PATH entry: "
-                f"{raw_entry!r}: {error}"
-            ) from error
-        if not entry.is_dir():
-            raise CanaryFailure(
-                f"resolve-authenticated-lake-path: unsafe LEAN_PATH entry: {entry}"
+            entry = gate.resolve_lake_module_path(
+                raw_entry, (lean4, lake.parent.parent),
             )
+        except gate.GateFailure as error:
+            raise CanaryFailure(f"resolve-authenticated-lake-path: {error}") from error
+        if entry is None:
+            continue
         if entry in entries:
             raise CanaryFailure(
                 f"resolve-authenticated-lake-path: duplicate LEAN_PATH entry: {entry}"
@@ -1036,6 +1023,13 @@ def endpoint_expected_paths(project_root: Path, modules: Iterable[str]) -> dict[
 
 
 def run_self_tests() -> int:
+    def expect_canary_failure(action: Any, label: str) -> None:
+        try:
+            action()
+        except (CanaryFailure, gate.GateFailure):
+            return
+        raise AssertionError(f"canary accepted {label}")
+
     assert strict_int(0, "zero") == 0
     for invalid in (True, 1.0, "1", -1):
         try:
@@ -1135,6 +1129,7 @@ def run_self_tests() -> int:
         package_path = root / "package-olean"
         project_path.mkdir()
         captured_commands: list[tuple[str, ...]] = []
+        lake_path_entries = [project_path, package_path]
         real_capture = gate.capture
 
         def reject_bare_lake(
@@ -1147,7 +1142,7 @@ def run_self_tests() -> int:
             captured_commands.append(tuple(command))
             if "shutil.which" in command[-1]:
                 return str(authenticated_lean)
-            return os.pathsep.join((str(project_path), str(package_path)))
+            return os.pathsep.join(str(path) for path in lake_path_entries)
 
         isolated_env = {"PATH": str(authenticated_lake.parent)}
         gate.capture = reject_bare_lake
@@ -1156,7 +1151,77 @@ def run_self_tests() -> int:
                 root, isolated_env, authenticated_lake
             )
             assert resolved_entries == (project_path.resolve(strict=True),)
+            frozen_entries = resolved_entries
             package_path.mkdir()
+            assert frozen_entries == (project_path.resolve(strict=True),)
+            captured_commands.clear()
+            resolved_lean, resolved_entries = resolved_authenticated_lake_environment(
+                root, isolated_env, authenticated_lake
+            )
+
+            lake_path_entries[:] = [Path("relative-module-path")]
+            expect_canary_failure(
+                lambda: resolved_authenticated_lake_environment(
+                    root, isolated_env, authenticated_lake
+                ),
+                "relative Lake module path",
+            )
+            module_file = root / "module-file"
+            module_file.write_text("not a directory\n", encoding="utf-8")
+            lake_path_entries[:] = [module_file]
+            expect_canary_failure(
+                lambda: resolved_authenticated_lake_environment(
+                    root, isolated_env, authenticated_lake
+                ),
+                "file-valued Lake module path",
+            )
+            lake_path_entries[:] = [project_path, project_path]
+            expect_canary_failure(
+                lambda: resolved_authenticated_lake_environment(
+                    root, isolated_env, authenticated_lake
+                ),
+                "duplicate Lake module path",
+            )
+            broken_link = root / "broken-module-link"
+            broken_link.symlink_to(root / "missing-link-target", target_is_directory=True)
+            lake_path_entries[:] = [broken_link]
+            expect_canary_failure(
+                lambda: resolved_authenticated_lake_environment(
+                    root, isolated_env, authenticated_lake
+                ),
+                "broken symlink Lake module path",
+            )
+            lake_path_entries[:] = [root / "missing-project-root"]
+            _, missing_entries = resolved_authenticated_lake_environment(
+                root, isolated_env, authenticated_lake
+            )
+            expect_canary_failure(
+                lambda: gate.require_namespace_provenance(
+                    missing_entries,
+                    project_root=project_path,
+                    completion_root=None,
+                ),
+                "omitted exact project module root",
+            )
+            denied_path = root / "denied-module-path"
+            denied_path.mkdir()
+            real_lstat = gate.os.lstat
+            def deny_lstat(path: object) -> os.stat_result:
+                if Path(path) == denied_path:
+                    raise PermissionError("simulated inspection denial")
+                return real_lstat(path)
+            gate.os.lstat = deny_lstat
+            lake_path_entries[:] = [denied_path]
+            try:
+                expect_canary_failure(
+                    lambda: resolved_authenticated_lake_environment(
+                        root, isolated_env, authenticated_lake
+                    ),
+                    "uninspectable Lake module path",
+                )
+            finally:
+                gate.os.lstat = real_lstat
+            lake_path_entries[:] = [project_path, package_path]
             captured_commands.clear()
             resolved_lean, resolved_entries = resolved_authenticated_lake_environment(
                 root, isolated_env, authenticated_lake
