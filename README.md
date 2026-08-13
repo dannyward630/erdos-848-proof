@@ -160,9 +160,10 @@ The research, code, proof drafting, and adversarial review were carried out in
 a multi-agent OpenAI Codex workflow under Danny Ward's direction. “Independent”
 in this repository means that separately assigned implementations or review
 lanes did not certify their own work; it does **not** mean external scholarly
-peer review. This first public release is unrefereed, and the public Erdős
-Problems tracker had not incorporated it as a resolution on 11 August 2026.
-See [`PROVENANCE.md`](PROVENANCE.md) for the authorship and evidence boundary.
+peer review. This public proof package remains unrefereed, and the public
+Erdős Problems tracker had not incorporated it as a resolution when rechecked
+on 13 August 2026. See [`PROVENANCE.md`](PROVENANCE.md) for the authorship and
+evidence boundary.
 
 No third-party source repository or PDF is silently vendored here. The
 ignored `external/` and `sources/cache/` trees are reconstructed from immutable
