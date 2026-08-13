@@ -80,8 +80,10 @@ Dispatch `.github/workflows/art006-full-source-completion.yml` with
 
 1. checks out both repositories at exact revisions without persisted GitHub
    credentials;
-2. authenticates the pinned Lean Windows ZIP before placing Lean/Lake on
-   `PATH`;
+2. enables Git-for-Windows long-path handling without mutating host config,
+   selects Python `3.12.10`, installs the hash-authenticated Windows
+   `psutil==7.2.2` wheel, and authenticates the pinned Lean Windows ZIP before
+   placing Lean/Lake on `PATH`;
 3. initializes a fresh persistent run root bound to the run id, attempt,
    commit, and runner name;
 4. runs the completion mutation suite and source-only census;
@@ -90,10 +92,12 @@ Dispatch `.github/workflows/art006-full-source-completion.yml` with
    trust-zero theorem map and 15 live axiom endpoints, compiles the literal
    positive-`N` root theorem, checks four root axiom endpoints, and records
    both dependency reports; and
-7. uses a second job on the same uniquely labelled host to validate and upload
-   the persistent receipt tree with a fresh `GITHUB_TOKEN`.  This avoids the
-   documented 24-hour token lifetime becoming an artifact-publication failure
-   after a long source build.
+7. uses a second job on the same uniquely labelled host to replay strict
+   receipt-validator mutations, reject noncanonical JSON, schema extensions,
+   Boolean/integer coercions, missing or extra log bytes, or a nonsuccess build
+   result, then uploads the persistent receipt tree with a fresh
+   `GITHUB_TOKEN`.  This avoids the documented 24-hour token lifetime becoming
+   an artifact-publication failure after a long source build.
 
 The equivalent direct command on a prepared host is:
 
@@ -117,8 +121,13 @@ must begin with no `Erdos848` project OLeans.  Do not run `lake update`.
 ## Promotion boundary
 
 Only the full gate's terminal line `LEAN COMPLETION GATE PASSED`, canonical
-receipt, authenticated raw logs, exactly 30,636 source-built provider OLeans,
-all 19 live endpoint reports, and both dependency reports can be submitted to
-an independent reviewer.  The workflow's success and artifact upload are not
-self-certification.  `LROOT`, `L1`, `L2`, and `RCLEAN` remain unverified until
-that independent review passes; `V0` and `P848` remain downstream of them.
+receipt, authenticated raw logs, exact 30,636-module post-build inventory, all
+19 live endpoint reports, root `Final.olean`, and both dependency reports can
+be submitted to an independent reviewer.  The artifact deliberately does not
+claim to contain the roughly 129 GB of provider OLean bytes; those remain in
+the source checkout on the execution host.  Their evidentiary role is the
+strictly guarded source-build, inventory, namespace-provenance, trust-zero,
+axiom, and dependency execution, not a byte-for-byte published OLean archive.
+The workflow's success and artifact upload are not self-certification.
+`LROOT`, `L1`, `L2`, and `RCLEAN` remain unverified until that independent
+review passes; `V0` and `P848` remain downstream of them.

@@ -342,9 +342,14 @@ gh run list --workflow art006-full-source-completion.yml --limit 1
 
 The build job writes outside the checkout to a run-id-bound persistent
 directory. A dependent job on the same uniquely labelled host receives a fresh
-job token, verifies the receipt/log hash chain and all 19 axiom endpoints, and
-uploads the result. This split is intentional because a self-hosted job may run
-longer than the documented 24-hour `GITHUB_TOKEN` lifetime. See
+job token, replays the strict receipt negative controls, verifies canonical
+JSON, exact types and schemas, the receipt/log hash chain, the successful build
+result, and all 19 axiom endpoints, then uploads the result. Python is fixed to
+`3.12.10`; the Windows `psutil==7.2.2` wheel is authenticated by the hash in
+`lean/requirements-completion.txt`; Git long-path support is supplied through
+per-process environment config. This split is intentional because a
+self-hosted job may run longer than the documented 24-hour `GITHUB_TOKEN`
+lifetime. See
 `diagnostics/FULL_SOURCE_COMPLETION_ROUTE.md` for the exact host assumptions,
 pilot audit, and promotion boundary.
 

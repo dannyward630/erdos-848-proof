@@ -25,6 +25,9 @@ env:
   ART006_REVISION: ede0151a35c86b6395cf67dd034811d22a92c7ba
   LEAN_RUNTIME_URL: https://github.com/leanprover/lean4/releases/download/v4.30.0-rc2/lean-4.30.0-rc2-windows.zip
   LEAN_RUNTIME_SHA256: cb0688631203ac7832e447a5791e51e88db938b6038ff788eea73491619988b2
+  GIT_CONFIG_COUNT: 1
+  GIT_CONFIG_KEY_0: core.longpaths
+  GIT_CONFIG_VALUE_0: 'true'
 
 jobs:
   full_source_completion:
@@ -52,7 +55,7 @@ jobs:
       - name: Select pinned Python series
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
-          python-version: '3.12'
+          python-version: '3.12.10'
           architecture: x64
 
       - name: Install the authenticated Lean runtime
@@ -102,7 +105,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          python -m pip install --disable-pip-version-check 'psutil==7.2.2'
+          python -m pip install --disable-pip-version-check `
+            --only-binary=:all: --require-hashes `
+            --requirement proof/lean/requirements-completion.txt
           if ($LASTEXITCODE -ne 0) {
             throw "psutil installation failed with exit code $LASTEXITCODE"
           }
@@ -139,20 +144,16 @@ jobs:
             throw "fresh run root already exists: $runRoot"
           }
           [void](New-Item -ItemType Directory -Path $runRoot)
-          $handoff = [ordered]@{
-            schema = 'erdos848-art006-workflow-handoff-v1'
-            status = 'initialized-before-lean-completion-gate'
-            run_id = $env:GITHUB_RUN_ID
-            run_attempt = [int]$env:GITHUB_RUN_ATTEMPT
-            head_sha = $env:GITHUB_SHA
-            runner_name = $env:RUNNER_NAME
-            runner_os = $env:RUNNER_OS
-            runner_arch = $env:RUNNER_ARCH
-            receipt_relative = 'receipt'
-          }
-          $handoff | ConvertTo-Json -Depth 3 |
-            Set-Content -LiteralPath (Join-Path $runRoot 'handoff.json') -Encoding utf8
           $receipt = Join-Path $runRoot 'receipt'
+          python -B proof/lean/validate_completion_workflow.py initialize `
+            --run-root $runRoot `
+            --run-id $env:GITHUB_RUN_ID `
+            --run-attempt $env:GITHUB_RUN_ATTEMPT `
+            --head-sha $env:GITHUB_SHA `
+            --runner-name $env:RUNNER_NAME
+          if ($LASTEXITCODE -ne 0) {
+            throw "persistent handoff initialization failed with exit code $LASTEXITCODE"
+          }
           "E848_RUN_ROOT=$runRoot" |
             Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "E848_RECEIPT_DIR=$receipt" |
@@ -166,6 +167,10 @@ jobs:
           python -B proof/lean/test_completion_gate.py
           if ($LASTEXITCODE -ne 0) {
             throw "completion mutation suite failed with exit code $LASTEXITCODE"
+          }
+          python -B proof/lean/test_completion_workflow.py
+          if ($LASTEXITCODE -ne 0) {
+            throw "workflow receipt mutation suite failed with exit code $LASTEXITCODE"
           }
 
       - name: Authenticate the full source closure without compiling
@@ -190,24 +195,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Lean completion gate failed with exit code $LASTEXITCODE"
           }
-          $receipt = Join-Path $env:E848_RECEIPT_DIR 'lean-completion-receipt.json'
-          if (-not (Test-Path -LiteralPath $receipt -PathType Leaf)) {
-            throw 'completion gate returned success without its canonical receipt'
+          python -B proof/lean/validate_completion_workflow.py seal `
+            --run-root $env:E848_RUN_ROOT `
+            --repository proof `
+            --run-id $env:GITHUB_RUN_ID `
+            --run-attempt $env:GITHUB_RUN_ATTEMPT `
+            --head-sha $env:GITHUB_SHA `
+            --runner-name $env:RUNNER_NAME
+          if ($LASTEXITCODE -ne 0) {
+            throw "completion receipt sealing failed with exit code $LASTEXITCODE"
           }
-          $receiptDigest = (
-            Get-FileHash -LiteralPath $receipt -Algorithm SHA256
-          ).Hash.ToLowerInvariant()
-          $success = [ordered]@{
-            schema = 'erdos848-art006-workflow-success-v1'
-            run_id = $env:GITHUB_RUN_ID
-            run_attempt = [int]$env:GITHUB_RUN_ATTEMPT
-            head_sha = $env:GITHUB_SHA
-            runner_name = $env:RUNNER_NAME
-            receipt_sha256 = $receiptDigest
-          }
-          $success | ConvertTo-Json -Depth 3 |
-            Set-Content -LiteralPath (Join-Path $env:E848_RUN_ROOT 'success.json') -Encoding utf8
-          Write-Host "ART006 FULL SOURCE EXECUTION SEALED receipt_sha256=$receiptDigest"
 
   publish_receipt:
     name: Publish persistent receipt with a fresh job token
@@ -223,6 +220,21 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Select the exact receipt-verifier Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12.10'
+          architecture: x64
+
+      - name: Replay receipt-validator mutations
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -B receipt-audit/lean/test_completion_workflow.py
+          if ($LASTEXITCODE -ne 0) {
+            throw "workflow receipt mutation suite failed with exit code $LASTEXITCODE"
+          }
 
       - name: Validate same-host handoff and receipt chain
         id: validate
@@ -240,161 +252,16 @@ jobs:
           if (-not (Test-Path -LiteralPath $runRoot -PathType Container)) {
             throw "persistent run root is missing: $runRoot"
           }
-          $handoffPath = Join-Path $runRoot 'handoff.json'
-          $handoff = Get-Content -LiteralPath $handoffPath -Raw | ConvertFrom-Json
-          if ($handoff.schema -cne 'erdos848-art006-workflow-handoff-v1' -or
-              $handoff.run_id -cne $env:GITHUB_RUN_ID -or
-              [int]$handoff.run_attempt -ne [int]$env:GITHUB_RUN_ATTEMPT -or
-              $handoff.head_sha -cne $env:GITHUB_SHA -or
-              $handoff.runner_name -cne $env:RUNNER_NAME -or
-              $handoff.runner_os -cne 'Windows' -or
-              $handoff.runner_arch -cne 'X64' -or
-              $handoff.receipt_relative -cne 'receipt') {
-            throw 'persistent handoff does not match this run and runner'
-          }
-          $receiptRoot = Join-Path $runRoot 'receipt'
-          $receiptPath = Join-Path $receiptRoot 'lean-completion-receipt.json'
-          $successPath = Join-Path $runRoot 'success.json'
-          if (Test-Path -LiteralPath $successPath -PathType Leaf) {
-            $success = Get-Content -LiteralPath $successPath -Raw | ConvertFrom-Json
-            $receipt = Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json
-            $receiptDigest = (
-              Get-FileHash -LiteralPath $receiptPath -Algorithm SHA256
-            ).Hash.ToLowerInvariant()
-            if ($success.schema -cne 'erdos848-art006-workflow-success-v1' -or
-                $success.run_id -cne $env:GITHUB_RUN_ID -or
-                [int]$success.run_attempt -ne [int]$env:GITHUB_RUN_ATTEMPT -or
-                $success.head_sha -cne $env:GITHUB_SHA -or
-                $success.runner_name -cne $env:RUNNER_NAME -or
-                $success.receipt_sha256 -cne $receiptDigest) {
-              throw 'success handoff or receipt digest mismatch'
-            }
-            if ($receipt.status -cne 'lean-completion-gate-passed' -or
-                $receipt.root_repository.head -cne $env:GITHUB_SHA -or
-                -not [bool]$receipt.root_repository.clean -or
-                $receipt.upstream.revision -cne $env:ART006_REVISION -or
-                [int]$receipt.provider_olean_count -ne 30636 -or
-                [int]$receipt.publication_source_count -ne 30638 -or
-                $receipt.provider_module_list_sha256 -cne '6cecc38e110c19024e2a397bd97fa06e31c12087366379e86e6c4e453df77643') {
-              throw 'completion receipt has the wrong status, source, or closure'
-            }
-            $sourceLock = Join-Path $env:GITHUB_WORKSPACE 'receipt-audit/lean/source-lock.json'
-            $sourceLockDigest = (
-              Get-FileHash -LiteralPath $sourceLock -Algorithm SHA256
-            ).Hash.ToLowerInvariant()
-            if ($receipt.source_lock_sha256 -cne $sourceLockDigest) {
-              throw 'completion receipt source-lock digest mismatch'
-            }
-            $tree = (& git -C (Join-Path $env:GITHUB_WORKSPACE 'receipt-audit') `
-              rev-parse 'HEAD^{tree}' | Out-String).Trim()
-            if ($LASTEXITCODE -ne 0 -or $receipt.root_repository.tree -cne $tree) {
-              throw 'completion receipt root tree mismatch'
-            }
-            $allowed = @($receipt.allowed_axioms)
-            if ([string]::Join("`n", $allowed) -cne
-                [string]::Join("`n", @('propext', 'Classical.choice', 'Quot.sound'))) {
-              throw 'completion receipt has the wrong allowed-axiom set'
-            }
-            $reports = @($receipt.axiom_reports.PSObject.Properties)
-            if ($reports.Count -ne 19) {
-              throw "completion receipt has $($reports.Count) axiom reports, expected 19"
-            }
-            $expectedEndpoints = @(
-              'Erdos848.NonSquarefreeProductProp',
-              'Erdos848.OriginalProblem848Statement',
-              'Erdos848.originalA7_has_property',
-              'Erdos848.originalProblem_of_hallStatement',
-              'Erdos848.erdos848HallStatement_iff_originalProblem',
-              'Erdos848.erdos848_through_five_million',
-              'Erdos848.PaperCertificateProvider.fiveToTenMillion',
-              'Erdos848.PaperCertificateProvider.tenToTwentyMillion',
-              'Erdos848.PaperCertificateProvider.twentyToFortyMillion',
-              'Erdos848.erdos848FortyMillionClose_kernel',
-              'Erdos848.PaperCertificateProvider.twoHundredToTwoBillion',
-              'Erdos848.PaperCertificateProvider.twoBillionTail',
-              'Erdos848.PaperCertificateProvider.fortyMillionTail',
-              'Erdos848.erdos848_paper_tail_close',
-              'Erdos848.PaperGeneratedCertificateProvider.all_N',
-              'Erdos848Completion.erdos848_all_positive',
-              'Erdos848Completion.residue_seven_witness',
-              'Erdos848Completion.residue_eighteen_witness',
-              'Erdos848Completion.residue_class_cardinalities'
-            )
-            $observedEndpoints = @($reports | ForEach-Object { $_.Name } | Sort-Object)
-            if ([string]::Join("`n", $observedEndpoints) -cne
-                [string]::Join("`n", @($expectedEndpoints | Sort-Object))) {
-              throw 'completion receipt axiom endpoint set mismatch'
-            }
-            foreach ($report in $reports) {
-              foreach ($axiom in @($report.Value)) {
-                if ($axiom -cnotin $allowed) {
-                  throw "forbidden axiom in receipt: $($report.Name) -> $axiom"
-                }
-              }
-            }
-            $logs = @($receipt.logs.PSObject.Properties)
-            $requiredLogs = @(
-              '01-mathlib-cache.log',
-              '02-clean-source-build.log',
-              '03-upstream-kernel-gates.log',
-              '04-root-final-build.log',
-              '05-root-trust-zero-axioms.log',
-              '06-root-final-dependencies.log',
-              '07-root-audit-dependencies.log'
-            )
-            $logNames = @($logs | ForEach-Object { $_.Name })
-            foreach ($required in $requiredLogs) {
-              if ($required -cnotin $logNames) {
-                throw "completion receipt is missing log: $required"
-              }
-            }
-            foreach ($entry in $logs) {
-              if (([string]$entry.Name) -cnotmatch '^[A-Za-z0-9._-]+[.]log$') {
-                throw "unsafe completion log name: $($entry.Name)"
-              }
-              $logPath = Join-Path $receiptRoot $entry.Name
-              $observed = (
-                Get-FileHash -LiteralPath $logPath -Algorithm SHA256
-              ).Hash.ToLowerInvariant()
-              if ($observed -cne ([string]$entry.Value)) {
-                throw "completion log digest mismatch: $($entry.Name)"
-              }
-            }
-            $buildText = Get-Content -LiteralPath (
-              Join-Path $receiptRoot '02-clean-source-build.log'
-            ) -Raw
-            if (-not $buildText.Contains('passed status=')) {
-              throw 'clean source-build log lacks its terminal marker'
-            }
-            $kernelText = Get-Content -LiteralPath (
-              Join-Path $receiptRoot '03-upstream-kernel-gates.log'
-            ) -Raw
-            if (-not $kernelText.Contains(
-                '[kernel-gate:ok] paper-machine version, trust=0, and axioms')) {
-              throw 'upstream kernel-gate log lacks its terminal marker'
-            }
-            $rootOlean = Join-Path $receiptRoot 'root-oleans/Erdos848Completion/Final.olean'
-            $rootOleanDigest = (
-              Get-FileHash -LiteralPath $rootOlean -Algorithm SHA256
-            ).Hash.ToLowerInvariant()
-            if ($receipt.root_final_olean_sha256 -cne $rootOleanDigest) {
-              throw 'root final OLean digest mismatch'
-            }
-            $partials = @(Get-ChildItem -LiteralPath $receiptRoot -Recurse -File `
-              -Filter '*.partial.log')
-            if ($partials.Count -ne 0) {
-              throw 'successful receipt tree contains a partial log'
-            }
-            Write-Host (
-              "LEAN COMPLETION HANDOFF VERIFIED receipt_sha256=$receiptDigest " +
-              "build_job_result=$env:E848_BUILD_RESULT"
-            )
-          }
-          else {
-            if (Test-Path -LiteralPath $receiptPath -PathType Leaf) {
-              throw 'failed build unexpectedly produced a completion receipt'
-            }
-            Write-Host "DIAGNOSTIC FAILURE HANDOFF VERIFIED result=$env:E848_BUILD_RESULT"
+          python -B receipt-audit/lean/validate_completion_workflow.py validate `
+            --run-root $runRoot `
+            --repository receipt-audit `
+            --run-id $env:GITHUB_RUN_ID `
+            --run-attempt $env:GITHUB_RUN_ATTEMPT `
+            --head-sha $env:GITHUB_SHA `
+            --runner-name $env:RUNNER_NAME `
+            --build-result $env:E848_BUILD_RESULT
+          if ($LASTEXITCODE -ne 0) {
+            throw "strict receipt validation failed with exit code $LASTEXITCODE"
           }
           "run_root=$runRoot" |
             Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
