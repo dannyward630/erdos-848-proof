@@ -68,6 +68,9 @@ Current platform limits are documented at:
 
 ## Fastest sound execution
 
+The workflow is prepared but has **not been executed**.  Its presence records
+the exact next route and promotes no proof-DAG node.
+
 Use one isolated Windows x86-64 self-hosted runner with at least 64 GiB RAM
 and 200 GiB genuinely free SSD storage.  Give exactly that runner the custom
 label `erdos848-art006`, pre-create a large-volume directory such as

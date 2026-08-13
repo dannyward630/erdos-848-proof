@@ -327,7 +327,8 @@ The emitted receipt is still subject to independent review before it may be
 copied into `lean/receipts/` or used to promote `L1`, `L2`, or `V0`.
 
 The tracked manual workflow wraps that exact gate for a uniquely labelled,
-isolated self-hosted runner. The workflow file must first exist on the default
+isolated self-hosted runner. It is currently unexecuted and therefore supplies
+no proof evidence or node promotion. The workflow file must first exist on the default
 branch because GitHub dispatches `workflow_dispatch` only for workflows on the
 default branch. Register exactly one Windows/X64 runner with the custom label
 `erdos848-art006`, pre-create `D:\erdos848-verification` on the large-volume

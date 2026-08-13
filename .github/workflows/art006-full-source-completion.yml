@@ -25,7 +25,7 @@ env:
   ART006_REVISION: ede0151a35c86b6395cf67dd034811d22a92c7ba
   LEAN_RUNTIME_URL: https://github.com/leanprover/lean4/releases/download/v4.30.0-rc2/lean-4.30.0-rc2-windows.zip
   LEAN_RUNTIME_SHA256: cb0688631203ac7832e447a5791e51e88db938b6038ff788eea73491619988b2
-  GIT_CONFIG_COUNT: 1
+  GIT_CONFIG_COUNT: '1'
   GIT_CONFIG_KEY_0: core.longpaths
   GIT_CONFIG_VALUE_0: 'true'
 
