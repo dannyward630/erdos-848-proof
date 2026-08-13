@@ -1,0 +1,77 @@
+{
+  "schema": "erdos848-cd0-public-index-v1",
+  "status": "cd0-independently-reviewed-passed",
+  "execution_provenance": "local-unattested",
+  "privacy_policy": "canonical path-bearing stage receipts and logs retained off-tree; hashes and byte lengths published here",
+  "source": {
+    "root_commit": "cd4c72842bd05ba8043144d057cac73ec2d705d7",
+    "root_tree": "a173e84a7619e7f280fb47125f96b1d4a2a53dbb",
+    "manifest_sha256": "d359378687e065e2dda9882e2af4af5f4d21e216fac11783871c93d7faee746a",
+    "orchestrator_sha256": "ba26ce6c93bd20514dd606666e1484f3c590627edd85c5f71851cc8d7d17c70d",
+    "art005_commit": "1afd7c722cae5ee7dd0fd1fde64427537394f749",
+    "art005_tree": "6dedab80313f06e232b0ca47c29ebaf39ce35b17"
+  },
+  "run": {
+    "started_at": "2026-08-11T17:53:12-04:00",
+    "finished_at": "2026-08-11T20:14:40-04:00",
+    "wall_seconds": "8487.79",
+    "maximum_resident_bytes": 1263697920,
+    "os_swap_operations": 0,
+    "terminal_marker": "ALL-N COMPUTATIONAL CERTIFICATE PASSED"
+  },
+  "final_receipt": {
+    "public_path": "certificates/all-n-computational-receipt-2026-08-11.json",
+    "bytes": 1832,
+    "sha256": "222c5313ed2f287fc5d2d3ee3e2d96938571838635518f19ee1f433bf0a71009"
+  },
+  "continuous_log": {
+    "raw_filename": "screenlog.0",
+    "bytes": 154464,
+    "sha256": "f209cf917032f893304779c0f83ec407539bcd603b4213d1581ff2963b0906db"
+  },
+  "stages": [
+    {
+      "name": "prefix",
+      "receipt_bytes": 2837,
+      "receipt_sha256": "636ef3c869ecae0ee53b9932a6dcbf9ac39484088aeb3087c4fbca194512de1e",
+      "log_bytes": 5318,
+      "log_sha256": "b8043f518241957b6e84483820dcc1356e8c87e53bba223bf930b75b47ae6acf"
+    },
+    {
+      "name": "p13-primality",
+      "receipt_bytes": 1731,
+      "receipt_sha256": "18df920a697c643836733a1b929eaf7371929a1e80396b61841a7708ad657bcf",
+      "log_bytes": 1158,
+      "log_sha256": "b88462542b4c26ddd7056c03a62968da115abfeccf1e004bc96ab7a35d799cb9"
+    },
+    {
+      "name": "finite-independent",
+      "receipt_bytes": 1631,
+      "receipt_sha256": "57b67a2b186ac58d9765f64b14d194b7be81a60660ff0fce2a45840c51821099",
+      "log_bytes": 4692,
+      "log_sha256": "776a8227da80d6527794fffe4934ecd9d696688b4cd3804390b6c2866bf30ee7"
+    },
+    {
+      "name": "high-numerics",
+      "receipt_bytes": 1677,
+      "receipt_sha256": "a5959d59f86ca924e1eee76c11d79ccc4f39b0e5617e6bebe861b60dce8a7e40",
+      "log_bytes": 8671,
+      "log_sha256": "69c3809f975887b939f00f584655ab112c8917396420be356095446a5b00af28"
+    },
+    {
+      "name": "art005-release",
+      "receipt_bytes": 1769,
+      "receipt_sha256": "70d1720cfbc68aac98cb37b2564e79e1bfc9410f7358de72fbf97515b6c2f114",
+      "log_bytes": 129266,
+      "log_sha256": "52f46ae99aa0f5d9ac4a194ed47ee1213f6de39e821289ea6a5d0755b7676d8c"
+    },
+    {
+      "name": "coverage",
+      "receipt_bytes": 1654,
+      "receipt_sha256": "124c6b7acd7eba6cae95704d204e9deb0135e8d8a81e972ced492f7c23651162",
+      "log_bytes": 1900,
+      "log_sha256": "07fc40574f6c47c00219f8df0398f3c82aff007fd3602d7854e9eeda9de4be62"
+    }
+  ],
+  "coverage_sha256": "b28760bca88b3f4a356f5212f5aa3711df00ee527606058a9aefc193e715ebe1"
+}

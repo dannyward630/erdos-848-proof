@@ -96,12 +96,12 @@ external scholarly acceptance. See `PROVENANCE.md`.
   expected first-pass cross-reference rerun notices, and the automatic second
   pass was clean. All five final pages were rendered and visually inspected
   after the link-style change.
-- **Unresolved gap:** the original audit predated the required root
-  `scripts/check_certificate.py` and `lean/` packaging. Those sources now
-  exist and their static/schema/checkpoint controls pass, but the complete fresh
-  six-stage root replay, clean Lean replay, and clean-checkout success path
-  have not yet been reviewed. The stale expected ART-006 missing-script line
-  in `REPRODUCE.md` was corrected during this completion audit.
+- **Unresolved gap at that snapshot:** the original audit predated the required
+  root `scripts/check_certificate.py` and `lean/` packaging. Those sources now
+  exist. The fresh six-stage root replay has since passed independent review as
+  recorded below; the clean Lean replay and complete clean-checkout success
+  path remain open. The stale expected ART-006 missing-script line in
+  `REPRODUCE.md` was corrected during the completion audit.
 - **Discovered counterexamples:** none to the theorem; every documentation
   defect found during this audit was repaired before the PASS.
 
@@ -126,29 +126,52 @@ external scholarly acceptance. See `PROVENANCE.md`.
 
 ## Promotion disposition
 
-The mathematical theorem `M0` and its independent mathematical-review node
-`VM0` are proved. ART-005 is accepted as the pinned computer-assisted
-mathematical proof. The repository target `P848` remains open because the
-completion bar still requires a full root certificate receipt (`CD0`), a
-compiled root Lean deliverable (`LROOT`), clean build and axiom nodes `L1` and
-`L2`, clean-checkout reproduction (`RCLEAN`), and final combined review `V0`.
-No integer interval or mathematical lemma remains uncovered.
+The mathematical theorem `M0`, its independent mathematical-review node
+`VM0`, and the fresh root computational node `CD0` are proved. ART-005 is
+accepted as the pinned computer-assisted mathematical proof. The repository
+target `P848` remains open because the completion bar still requires a compiled
+root Lean deliverable (`LROOT`), clean build and axiom nodes `L1` and `L2`,
+clean-checkout reproduction (`RCLEAN`), and final combined review `V0`. No
+integer interval or mathematical lemma remains uncovered.
 
 ## Completion-deliverable audit amendment
 
 An independent 11 August completion audit classified the missing DAG/package
 obligations as `REVISE_DECOMPOSITION` and the external Lean build as
 `REPAIR_EXECUTION`. It confirmed that the earlier mathematical PASS did not by
-itself establish the named root checker, root Lean entrypoint,
-or clean-environment success. DAG version 8 records these separately. The new
-sources must receive their own adversarial review after complete execution;
-this amendment is not that future PASS.
+itself establish the named root checker, root Lean entrypoint, or
+clean-environment success. DAG version 8 introduced these separate nodes, and
+version 9 records the later independent `CD0` promotion. The Lean sources must
+still receive their execution-level adversarial review; this amendment is not
+that future PASS.
 
 The root checker now treats checkpoint resumption as operational recovery only.
 Because local unsigned logs and receipts cannot attest that a command executed,
 a resumed chain cannot emit the theorem-grade PASS or promote `CD0`; only one
 fresh uninterrupted six-stage run can do so. Link, reparse-point, stale-partial,
 unexpected-entry, and output-redirection controls fail closed.
+
+## Root computational completion review
+
+- **Claim attempted:** verify one fresh, uninterrupted, non-resumed execution
+  of all six stages of `scripts/check_certificate.py` at the public source pin.
+- **Exact result:** PASS. The run at public commit `cd4c728...d705d7` and
+  ART-005 commit `1afd7c7...f749` ended with
+  `ALL-N COMPUTATIONAL CERTIFICATE PASSED` after 8,487.79 seconds.
+- **Certificate:**
+  `certificates/all-n-computational-receipt-2026-08-11.json`, SHA-256
+  `222c5313ed2f287fc5d2d3ee3e2d96938571838635518f19ee1f433bf0a71009`.
+- **Independent verification:** a separately assigned referee reconstructed
+  canonicality, all six stage fingerprints and receipt dependencies, every
+  log/output hash, both clean Git identities, all 19 ART-005 substage results,
+  the required negative controls, and gapless coverage. No real stage used
+  resume; the only `RESUME` text was the mandatory fake-stage rejection test.
+- **Provenance boundary:** the receipt says `local-unattested`; it is a
+  cryptographically bound local execution record, not a signed third-party or
+  CI attestation. This matches the declared `CD0` specification.
+- **Disposition:** promote `CD0`. Do not promote any Lean or combined
+  completion node from this result. Exact stage and raw-log identities are in
+  `certificates/all-n-root-replay-2026-08-11.md`.
 
 ## Additional deep-review feedback and response
 
@@ -158,8 +181,10 @@ semantics, structural-rank lemma, collision/noncollision split, generalized
 Pell bound, Lemma A, all outsider branches, interval monotonicity, one tight
 middle-range row, and the ART-006 theorem interface. The reviewer explicitly
 did **not** execute the full multi-hour release replay, reconstruct every line
-of the high-range source, or independently rebuild Lean, so this feedback is
-corroboration rather than promotion of `CD0`, `L1`, `L2`, or `V0`.
+of the high-range source, or independently rebuild Lean, so that feedback was
+corroboration rather than a promotion decision. The later dedicated
+root-replay referee promoted `CD0`; `L1`, `L2`, and `V0` remain outside both
+reviews.
 
 Three requested corrections/checks were resolved:
 

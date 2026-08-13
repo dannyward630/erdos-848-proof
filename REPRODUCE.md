@@ -419,13 +419,23 @@ Expected final line:
 ALL-N COMPUTATIONAL CERTIFICATE PASSED
 ```
 
+The audited fresh run at public commit `cd4c728...d705d7` reproduced that
+line after all six stages. Its canonical final receipt is
+`certificates/all-n-computational-receipt-2026-08-11.json`, SHA-256
+`222c5313ed2f287fc5d2d3ee3e2d96938571838635518f19ee1f433bf0a71009`.
+The ordered stage/log hashes, tool versions, timing, resource record, and
+separate referee audit are in
+`certificates/all-n-root-replay-2026-08-11.md`. A new checkout should still
+run the command above rather than treating the retained receipt as a local
+execution substitute.
+
 After interruption, `--resume` may be used to finish diagnostic work from
 verified stage boundaries. Every checkpoint is reauthenticated against the
 manifest, dependency receipts, commands, tool versions, output hashes, and log
 hash. These unsigned local checkpoints cannot attest execution provenance, so
 a resumed chain emits only `resumed-checkpoint-chain-validated` and never the
-theorem-grade PASS. To discharge `CD0`, start again in a new empty directory
-and complete all six stages uninterrupted. Neither a partial stage,
+theorem-grade PASS. Only a new empty directory and all six uninterrupted
+stages can create another theorem-grade receipt. Neither a partial stage,
 `--preflight-only`, nor `--resume` emits the final theorem-grade PASS.
 
 Fast schema, Boolean/float, path, symlink/reparse, coverage-gap, checkpoint,
