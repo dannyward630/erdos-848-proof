@@ -95,12 +95,17 @@ Dispatch `.github/workflows/art006-full-source-completion.yml` with
    trust-zero theorem map and 15 live axiom endpoints, compiles the literal
    positive-`N` root theorem, checks four root axiom endpoints, and records
    both dependency reports; and
-7. uses a second job on the same uniquely labelled host to replay strict
-   receipt-validator mutations, reject noncanonical JSON, schema extensions,
-   Boolean/integer coercions, missing or extra log bytes, or a nonsuccess build
-   result, then uploads the persistent receipt tree with a fresh
-   `GITHUB_TOKEN`.  This avoids the documented 24-hour token lifetime becoming
-   an artifact-publication failure after a long source build.
+7. uses a second job on the same uniquely labelled host to replay the bounded
+   metadata/schema mutation controls, then strictly validates canonical JSON,
+   exact types and schemas, the successful build result, every expected log
+   byte, the root OLean, dependencies, and all 19 endpoint reports before
+   uploading the persistent receipt tree with a fresh `GITHUB_TOKEN`.  This
+   avoids the documented 24-hour token lifetime becoming an
+   artifact-publication failure after a long source build.  The bounded
+   mutation suite directly covers duplicate keys, noncanonical JSON, schema
+   extensions and ordering, Boolean/integer coercions, and digest mutation; the
+   other listed properties are validator checks, not separately mutated
+   integration fixtures.
 
 The equivalent direct command on a prepared host is:
 

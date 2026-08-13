@@ -352,7 +352,8 @@ per-process environment config. This split is intentional because a
 self-hosted job may run longer than the documented 24-hour `GITHUB_TOKEN`
 lifetime. See
 `diagnostics/FULL_SOURCE_COMPLETION_ROUTE.md` for the exact host assumptions,
-pilot audit, and promotion boundary.
+pilot audit, exact distinction between mutation-tested and directly validated
+properties, and promotion boundary.
 
 The documented clean source route, run from the candidate root, is:
 
