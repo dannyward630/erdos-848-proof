@@ -1,0 +1,51 @@
+{
+  "schema": "erdos848-lean-source-checkpoint-plan-v1",
+  "status": "diagnostic-only-not-an-art006-completion-receipt",
+  "source": {
+    "url": "https://github.com/crabsatellite/erdos-848-squarefree-product.git",
+    "revision": "ede0151a35c86b6395cf67dd034811d22a92c7ba",
+    "tree": "5b1253061e916513036d30d8275c9aeaddb0e771",
+    "lean_tree": "6b9794fafddd3e7780c6a10a442f2e4e9dc73c1a",
+    "toolchain": "leanprover/lean4:v4.30.0-rc2",
+    "lean_commit": "3dc1a088b6d2d8eafe25a7cd7ec7b58d731bd7cc",
+    "lean_toolchain_sha256": "ce4c4e3d87434b9663f46de25ce34b48a0cf0d392e0a320a0787b4674a2d7b61",
+    "lake_manifest_sha256": "e016cb20d7f2f3b2bef02393f4b468fdd4f8fdeba9784aabb39e2889a87b5d4c",
+    "lakefile_sha256": "7479e2c461de9c48bcf32fc210ee2ce56d6d1a485c0a0d49d17f934082074912",
+    "mathlib_revision": "54e71fa9173471d591658f5380c46aaf050bbaae"
+  },
+  "target_module": "Erdos848.SharpnessCore",
+  "modules_per_segment": 1,
+  "module_list_sha256": "c8261e11f5ad0b90f8cc81e2025da73e71bda3c600997b13ce2249d7db9cd417",
+  "segments": [
+    {
+      "index": 0,
+      "id": "segment-0000",
+      "parents": [],
+      "modules": [
+        {
+          "name": "Erdos848.ProblemCore",
+          "source_path": "lean4/Erdos848/ProblemCore.lean",
+          "source_sha256": "3cc1f264149eaf99e18a04c8f57e4c6850c8571d0cb5b1de0fefdec087d5cfec",
+          "project_imports": []
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "id": "segment-0001",
+      "parents": [
+        0
+      ],
+      "modules": [
+        {
+          "name": "Erdos848.SharpnessCore",
+          "source_path": "lean4/Erdos848/SharpnessCore.lean",
+          "source_sha256": "28ab81056d45faed9fa71fcded79b0638cd778b11b3085d9273a8af0c5bf52a6",
+          "project_imports": [
+            "Erdos848.ProblemCore"
+          ]
+        }
+      ]
+    }
+  ]
+}

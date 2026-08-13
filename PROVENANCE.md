@@ -20,8 +20,9 @@ claim or exact counterexample could be checked and recorded in these files.
 As of 13 August 2026, this is an unrefereed public proof package. The
 mathematical all-$N$ argument and one fresh, uninterrupted root six-stage
 computation are recorded as proved in the project ledger. The canonical root
-receipt is published with release `v1.1.0-cd0`; its execution provenance is
-accurately labelled `local-unattested`, not externally signed.
+receipt was first published with release `v1.1.0-cd0` and is retained in the
+corrective `v1.1.1-cd0` package; its execution provenance is accurately
+labelled `local-unattested`, not externally signed.
 
 The repository's stricter completion node remains open pending an independent
 clean ART-006 Lean source build, trust-zero replay, live axiom report, exact

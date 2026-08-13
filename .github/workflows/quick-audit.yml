@@ -2,6 +2,8 @@ name: Quick audit
 
 on:
   push:
+    branches:
+      - main
   pull_request:
 
 permissions:
@@ -22,6 +24,7 @@ jobs:
         run: |
           python -m py_compile \
             computations/*.py \
+            diagnostics/*.py \
             scripts/*.py \
             lean/*.py
 
@@ -59,7 +62,10 @@ jobs:
         run: |
           python -B computations/test_all_n_manifest.py
           python -B computations/test_all_n_resume.py
+          python -B diagnostics/test_lean_checkpoint_plan.py
           python -B lean/test_completion_gate.py
+          python -B lean/test_completion_workflow.py
+          python -B diagnostics/run_cached_lean_canary.py --self-test
 
       - name: Verify canonical prefix certificate
         run: |

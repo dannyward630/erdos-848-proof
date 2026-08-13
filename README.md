@@ -33,8 +33,11 @@ not a uniqueness claim.
   `propext`, `Classical.choice`, and `Quot.sound`.
 - **Remaining project-level gate:** this repository has not independently run
   ART-006's complete 30,636-module provider build and trust-zero replay from
-  source on the required Windows capacity. The remaining work is formal and
-  clean-reproduction assurance, not an uncovered value of $N$.
+  source on the required Windows capacity. No qualifying host is currently
+  available to the maintainer; the reviewed but unexecuted route is tracked in
+  [issue 2](https://github.com/dannyward630/erdos-848-proof/issues/2) and
+  [`diagnostics/STATUS.md`](diagnostics/STATUS.md). The remaining work is
+  formal and clean-reproduction assurance, not an uncovered value of $N$.
 
 The precise status of every dependency is recorded in
 [`docs/proof-ledger.md`](docs/proof-ledger.md) and
@@ -131,6 +134,7 @@ RAM, 200 GiB free storage, and a 32 GiB guarded Lean ceiling.
 | [`computations/`](computations/) | Independent exact checkers, generators, and negative controls |
 | [`scripts/`](scripts/) | Primary all-$N$ and finite replay orchestrators |
 | [`lean/`](lean/) | Literal final theorem, source lock, axiom audit, and guarded completion gate |
+| [`diagnostics/`](diagnostics/) | Bounded host/cache/source-build experiments and their non-promotion boundaries |
 | [`docs/`](docs/) | Statement/source audits, proof DAG, ledger, failed lemmas, computation semantics, and handoff |
 | [`sources/`](sources/) | Source manifest; downloaded third-party PDFs/pages are intentionally untracked |
 

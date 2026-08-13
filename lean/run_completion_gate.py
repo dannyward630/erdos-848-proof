@@ -18,6 +18,7 @@ import re
 import signal
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -37,6 +38,15 @@ TREE = '5b1253061e916513036d30d8275c9aeaddb0e771'
 LEAN_TREE = '6b9794fafddd3e7780c6a10a442f2e4e9dc73c1a'
 TOOLCHAIN = 'leanprover/lean4:v4.30.0-rc2'
 LEAN_COMMIT = '3dc1a088b6d2d8eafe25a7cd7ec7b58d731bd7cc'
+RUNTIME_ARCHIVE_SHA256 = (
+    'cb0688631203ac7832e447a5791e51e88db938b6038ff788eea73491619988b2'
+)
+LEAN_EXECUTABLE_SHA256 = (
+    '5bead9b39d9a23306507fb59277995b94e71787d86d76a9ed3fb248b1ed3f995'
+)
+LAKE_EXECUTABLE_SHA256 = (
+    '9befc94126195bc2057109e2cfc1207962739ba1b5fc03b8b955be4e27210eed'
+)
 MATHLIB = '54e71fa9173471d591658f5380c46aaf050bbaae'
 SOURCE_COUNT = 30638
 SOURCE_BYTES = 2346175840
@@ -54,7 +64,7 @@ AUDIT_SOURCE_SHA256 = (
     'fdbad8d9dc8f084b8fa3acb86a3ef395d792f5622c5b5dfe070bdab4398d42c6'
 )
 TEST_SOURCE_SHA256 = (
-    '4cec461a3a4688c6bbc3e40ae302ae147857a7c3adb6656e23fca0ee72d8af26'
+    'c624307ae322e2d5ef9e412db893622ee7f248e41b7ddd6ae395d2829636ee7e'
 )
 ALLOWED_AXIOMS = ('propext', 'Classical.choice', 'Quot.sound')
 ENDPOINTS = (
@@ -92,6 +102,9 @@ FILE_HASHES = {
     'lean4/Erdos848/PublicationAxiomAudit.lean':
         'b0c280ff98b1ea5e5e91a0fc629e6f149dd2c28fbdc2be9ebac78f45c9cb8030',
 }
+FILE_ATTRIBUTE_REPARSE_POINT = getattr(
+    stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0x400
+)
 
 
 class GateFailure(RuntimeError):
@@ -139,6 +152,9 @@ def read_lock() -> dict[str, Any]:
         'toolchain': {
             'lean': TOOLCHAIN,
             'lean_commit': LEAN_COMMIT,
+            'runtime_archive_sha256': RUNTIME_ARCHIVE_SHA256,
+            'lean_executable_sha256': LEAN_EXECUTABLE_SHA256,
+            'lake_executable_sha256': LAKE_EXECUTABLE_SHA256,
             'lean_toolchain_sha256': FILE_HASHES['lean4/lean-toolchain'],
             'lake_manifest_sha256': FILE_HASHES['lean4/lake-manifest.json'],
             'lakefile_sha256': FILE_HASHES['lean4/lakefile.toml'],
@@ -217,33 +233,236 @@ def sanitized_lean_environment(
     return result
 
 
-def resolved_lean_executable(lean4: Path, base_env: dict[str, str]) -> Path:
+def path_has_reparse_attribute(path: Path) -> bool:
+    attributes = getattr(os.lstat(path), 'st_file_attributes', 0)
+    return bool(attributes & FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def require_no_reparse_ancestors(path: Path) -> None:
+    current = path
+    while True:
+        if current.exists() and (
+            current.is_symlink() or path_has_reparse_attribute(current)
+        ):
+            raise GateFailure(f'runtime path contains a reparse point: {current}')
+        parent = current.parent
+        if parent == current:
+            return
+        current = parent
+
+
+def resolve_lake_module_path(
+    raw_entry: str, allowed_roots: Sequence[Path],
+) -> Path | None:
+    """Resolve one Lake path, omitting only an exactly nonexistent entry."""
+
+    candidate = Path(raw_entry)
+    if not candidate.is_absolute():
+        raise GateFailure(f'Lake produced a relative LEAN_PATH entry: {raw_entry!r}')
+    if '..' in candidate.parts:
+        raise GateFailure(f'Lake produced a noncanonical LEAN_PATH entry: {raw_entry!r}')
+    lexical_roots = tuple(Path(root) for root in allowed_roots)
+    stop = next(
+        (
+            root for root in lexical_roots
+            if candidate == root or root in candidate.parents
+        ),
+        None,
+    )
+    if stop is None:
+        raise GateFailure(f'Lake produced an out-of-root LEAN_PATH entry: {raw_entry!r}')
+    missing = False
+    current = candidate
+    while True:
+        try:
+            metadata = os.lstat(current)
+        except FileNotFoundError:
+            if current == candidate:
+                missing = True
+        except OSError as error:
+            raise GateFailure(
+                f'Lake LEAN_PATH entry could not be inspected: '
+                f'{raw_entry!r}: {error}'
+            ) from error
+        else:
+            attributes = getattr(metadata, 'st_file_attributes', 0)
+            if stat.S_ISLNK(metadata.st_mode) or (
+                attributes & FILE_ATTRIBUTE_REPARSE_POINT
+            ):
+                raise GateFailure(
+                    f'Lake produced a reparse-point LEAN_PATH entry: {current}'
+                )
+        if current == stop:
+            break
+        parent = current.parent
+        if parent == current:
+            raise GateFailure(f'Lake LEAN_PATH entry escaped its allowed root: {candidate}')
+        current = parent
+    if missing:
+        print(f'OMITTED NONEXISTENT LAKE MODULE PATH {candidate}', flush=True)
+        return None
+    try:
+        entry = candidate.resolve(strict=True)
+    except OSError as error:
+        raise GateFailure(
+            f'Lake produced an unavailable LEAN_PATH entry: '
+            f'{raw_entry!r}: {error}'
+        ) from error
+    if not entry.is_dir():
+        raise GateFailure(f'Lake produced an unsafe LEAN_PATH entry: {entry}')
+    return entry
+
+
+def resolved_runtime_executables(
+    runtime_bin: Path, base_env: dict[str, str],
+) -> tuple[Path, Path, Path]:
+    """Bind sanitized PATH to the explicit authenticated runtime bin."""
+
+    if not runtime_bin.is_absolute():
+        raise GateFailure('--runtime-bin must be an absolute path')
+    if runtime_bin.exists() and runtime_bin.is_symlink():
+        raise GateFailure('--runtime-bin itself must not be a symlink')
+    require_no_reparse_ancestors(runtime_bin)
+    try:
+        exact_bin = runtime_bin.resolve(strict=True)
+    except OSError as error:
+        raise GateFailure(f'--runtime-bin is unavailable: {runtime_bin}: {error}') from error
+    if runtime_bin != exact_bin:
+        raise GateFailure(
+            f'--runtime-bin must be an exact canonical path: {runtime_bin} != {exact_bin}'
+        )
+    if (
+        not exact_bin.is_dir()
+        or exact_bin.is_symlink()
+        or path_has_reparse_attribute(exact_bin)
+        or exact_bin.name.lower() != 'bin'
+    ):
+        raise GateFailure(f'--runtime-bin is not a safe bin directory: {exact_bin}')
+    require_no_reparse_ancestors(exact_bin)
+
+    path_value = base_env.get('PATH')
+    if type(path_value) is not str or not path_value:
+        raise GateFailure('effective PATH is empty while resolving Lean/Lake')
+    if sys.platform == 'win32':
+        lean_name, lake_name = 'lean.exe', 'lake.exe'
+    else:
+        lean_name, lake_name = 'lean', 'lake'
+
+    def resolve(name: str, label: str) -> Path:
+        raw = shutil.which(name, path=path_value)
+        if raw is None:
+            raise GateFailure(f'{label} is missing from the effective PATH')
+        try:
+            executable = Path(raw).resolve(strict=True)
+        except OSError as error:
+            raise GateFailure(
+                f'effective PATH resolved an unavailable {label}: {raw}: {error}'
+            ) from error
+        if not executable.is_file() or executable.is_symlink():
+            raise GateFailure(
+                f'effective PATH resolved an unsafe {label}: {executable}'
+            )
+        return executable
+
+    lean = resolve(lean_name, 'Lean executable')
+    lake = resolve(lake_name, 'Lake executable')
+    lean_path = exact_bin / lean_name
+    lake_path = exact_bin / lake_name
+    if lean_path.is_symlink() or lake_path.is_symlink():
+        raise GateFailure('explicit runtime contains a symlinked Lean or Lake')
+    try:
+        expected_lean = lean_path.resolve(strict=True)
+        expected_lake = lake_path.resolve(strict=True)
+    except OSError as error:
+        raise GateFailure(
+            f'explicit runtime bin omits Lean or Lake: {exact_bin}: {error}'
+        ) from error
+    if lean != expected_lean or lake != expected_lake:
+        raise GateFailure(
+            'effective PATH does not resolve the explicit runtime pair: '
+            f'Lean={lean} Lake={lake} runtime_bin={exact_bin}'
+        )
+    for executable, expected_hash, label in (
+        (lean, LEAN_EXECUTABLE_SHA256, 'Lean executable'),
+        (lake, LAKE_EXECUTABLE_SHA256, 'Lake executable'),
+    ):
+        if executable.parent != exact_bin or path_has_reparse_attribute(executable):
+            raise GateFailure(f'{label} is outside or unsafe under runtime bin')
+        observed = sha256_file(executable)
+        if observed != expected_hash:
+            raise GateFailure(
+                f'{label} digest mismatch: {observed} != {expected_hash}'
+            )
+    return exact_bin, lean, lake
+
+
+def capture_lake_environment(
+    lake_executable: Path, lean4: Path, base_env: dict[str, str],
+    script: str, phase: str,
+) -> str:
+    """Run one Lake environment query through the already resolved executable."""
+
+    try:
+        lake = lake_executable.resolve(strict=True)
+    except OSError as error:
+        raise GateFailure(
+            f'{phase}: Lake executable is unavailable: {lake_executable}: {error}'
+        ) from error
+    expected_name = 'lake.exe' if sys.platform == 'win32' else 'lake'
+    if (
+        not lake.is_file()
+        or lake.is_symlink()
+        or lake.name.lower() != expected_name
+    ):
+        raise GateFailure(f'{phase}: unsafe Lake executable: {lake}')
+    try:
+        return capture(
+            (str(lake), 'env', sys.executable, '-c', script),
+            lean4, env=base_env,
+        )
+    except OSError as error:
+        raise GateFailure(
+            f'{phase}: absolute Lake command could not start: {lake}: {error}'
+        ) from error
+    except GateFailure as error:
+        raise GateFailure(f'{phase}: {error}') from error
+
+
+def resolved_lean_executable(
+    lean4: Path, base_env: dict[str, str], lake_executable: Path,
+) -> Path:
     """Resolve Lake's Lean executable without trusting a caller module path."""
 
     which_script = (
         "import shutil; value = shutil.which('lean'); "
         "print(value if value is not None else '')"
     )
-    executable_raw = capture(
-        ('lake', 'env', sys.executable, '-c', which_script),
-        lean4, env=base_env,
+    executable_raw = capture_lake_environment(
+        lake_executable, lean4, base_env, which_script,
+        'resolve-Lake-Lean-executable',
     )
-    executable = Path(executable_raw).resolve(strict=True)
+    try:
+        executable = Path(executable_raw).resolve(strict=True)
+    except OSError as error:
+        raise GateFailure(
+            'Lake returned an unavailable Lean executable: '
+            f'{executable_raw!r}: {error}'
+        ) from error
     if not executable.is_file() or executable.is_symlink():
         raise GateFailure(f'Lake resolved an unsafe Lean executable: {executable}')
     return executable
 
 
 def resolved_lean_environment(
-    lean4: Path, base_env: dict[str, str]
+    lean4: Path, base_env: dict[str, str], lake_executable: Path,
 ) -> tuple[Path, tuple[Path, ...]]:
     """Resolve the Lean executable and Lake-computed module path exactly once."""
 
-    executable = resolved_lean_executable(lean4, base_env)
+    executable = resolved_lean_executable(lean4, base_env, lake_executable)
     path_script = "import os; print(os.environ.get('LEAN_PATH', ''))"
-    raw_path = capture(
-        ('lake', 'env', sys.executable, '-c', path_script),
-        lean4, env=base_env,
+    raw_path = capture_lake_environment(
+        lake_executable, lean4, base_env, path_script,
+        'resolve-Lake-module-path',
     )
     if not raw_path:
         raise GateFailure('Lake produced an empty LEAN_PATH')
@@ -251,9 +470,11 @@ def resolved_lean_environment(
     for raw_entry in raw_path.split(os.pathsep):
         if not raw_entry:
             raise GateFailure('Lake produced an empty LEAN_PATH entry')
-        entry = Path(raw_entry).resolve(strict=True)
-        if not entry.is_dir() or entry.is_symlink():
-            raise GateFailure(f'Lake produced an unsafe LEAN_PATH entry: {entry}')
+        entry = resolve_lake_module_path(
+            raw_entry, (lean4, lake_executable.parent.parent),
+        )
+        if entry is None:
+            continue
         if entry in entries:
             raise GateFailure(f'Lake produced a duplicate LEAN_PATH entry: {entry}')
         entries.append(entry)
@@ -819,6 +1040,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--upstream-root', type=Path, default=DEFAULT_UPSTREAM)
     parser.add_argument('--receipt-dir', type=Path)
+    parser.add_argument('--runtime-bin', type=Path)
     parser.add_argument('--source-audit-only', action='store_true')
     parser.add_argument('--memory-mib', type=int, default=32768)
     args = parser.parse_args()
@@ -838,6 +1060,8 @@ def main() -> int:
         raise GateFailure('full gate requires the locked 32768 MiB ceiling')
     if args.receipt_dir is None:
         raise GateFailure('--receipt-dir is required for the full gate')
+    if args.runtime_bin is None:
+        raise GateFailure('--runtime-bin is required for the full gate')
     require_fresh_build(upstream)
     host = require_host(upstream)
 
@@ -856,16 +1080,39 @@ def main() -> int:
     logs: dict[str, str] = {}
     lean4 = upstream / 'lean4'
     base_env = sanitized_lean_environment()
-    dependencies_before = prepare_dependencies(lean4, receipt_dir, logs)
-    lean_executable = resolved_lean_executable(lean4, base_env)
+    runtime_bin, lean_executable, lake_executable = resolved_runtime_executables(
+        args.runtime_bin, base_env
+    )
     lean_version = observed_lean_version(lean_executable, lean4, base_env)
+    dependencies_before = prepare_dependencies(lean4, receipt_dir, logs)
+    print(
+        f'LEAN_GATE_PHASE absolute-mathlib-cache-bootstrap '
+        f'lake={lake_executable}',
+        flush=True,
+    )
     cache_log = run_logged(
-        '01-mathlib-cache', ('lake', 'exe', 'cache', 'get'), lean4,
+        '01-mathlib-cache',
+        (str(lake_executable), 'exe', 'cache', 'get'), lean4,
         receipt_dir, 7200, base_env,
     )
     logs[cache_log.name] = sha256_file(cache_log)
-    if dependency_snapshot(lean4) != dependencies_before:
+    print('LEAN_GATE_PHASE verify-post-cache-dependency-snapshot', flush=True)
+    try:
+        dependencies_after_cache = dependency_snapshot(lean4)
+    except (GateFailure, OSError, subprocess.SubprocessError) as error:
+        raise GateFailure(
+            f'verify-post-cache-dependency-snapshot: {error}'
+        ) from error
+    if dependencies_after_cache != dependencies_before:
         raise GateFailure('Lake dependency checkout changed during cache setup')
+    print('LEAN_GATE_PHASE verify-zero-project-oleans-after-cache', flush=True)
+    require_fresh_build(upstream)
+    print('LEAN_GATE_PHASE absolute-mathlib-cache-bootstrap-complete', flush=True)
+    lean_executable_after_cache = resolved_lean_executable(
+        lean4, base_env, lake_executable
+    )
+    if lean_executable_after_cache != lean_executable:
+        raise GateFailure('resolved Lean executable changed during cache setup')
 
     build_command = (
         sys.executable, '-B',
@@ -887,7 +1134,9 @@ def main() -> int:
     require_log_marker(build_log, 'passed status=', 'clean build')
     logs[build_log.name] = sha256_file(build_log)
 
-    lean_executable_after, lake_entries = resolved_lean_environment(lean4, base_env)
+    lean_executable_after, lake_entries = resolved_lean_environment(
+        lean4, base_env, lake_executable
+    )
     if lean_executable_after != lean_executable:
         raise GateFailure('resolved Lean executable changed during build')
     project_olean_root = (lean4 / '.lake' / 'build' / 'lib' / 'lean').resolve(
@@ -1007,7 +1256,12 @@ def main() -> int:
         'host': host,
         'toolchain': {
             'lean': TOOLCHAIN, 'observed_lean_version': lean_version,
+            'runtime_archive_sha256': RUNTIME_ARCHIVE_SHA256,
+            'runtime_bin': str(runtime_bin),
             'resolved_lean_executable': str(lean_executable),
+            'lean_executable_sha256': LEAN_EXECUTABLE_SHA256,
+            'resolved_lake_executable': str(lake_executable),
+            'lake_executable_sha256': LAKE_EXECUTABLE_SHA256,
             'lean_commit': LEAN_COMMIT, 'mathlib_revision': MATHLIB,
             'psutil': psutil.__version__,
         },

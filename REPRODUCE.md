@@ -301,23 +301,93 @@ with at least 64 GiB RAM and 200 GiB genuinely free disk, install the pinned
 runtime and run from this repository root in PowerShell:
 
 ```powershell
-python -m pip install --disable-pip-version-check "psutil==7.2.2"
-elan toolchain install leanprover/lean4:v4.30.0-rc2
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
+
+python -m pip install --disable-pip-version-check `
+  --only-binary=:all: --require-hashes `
+  --requirement lean/requirements-completion.txt
+if ($LASTEXITCODE -ne 0) {
+  throw "pinned psutil installation failed with exit code $LASTEXITCODE"
+}
+
+$runtimeBase = Join-Path $env:TEMP (
+  "erdos848-lean-runtime-manual-" + [guid]::NewGuid().ToString("N")
+)
+if (Test-Path -LiteralPath $runtimeBase) {
+  throw "fresh runtime directory unexpectedly exists: $runtimeBase"
+}
+[void](New-Item -ItemType Directory -Path $runtimeBase)
+$runtimeZip = Join-Path $runtimeBase "lean-4.30.0-rc2-windows.zip"
+$runtimeRoot = Join-Path $runtimeBase "extracted"
+
+& curl.exe --proto "=https" --tlsv1.2 --location --fail --silent `
+  --show-error --retry 5 --retry-all-errors --output $runtimeZip `
+  "https://github.com/leanprover/lean4/releases/download/v4.30.0-rc2/lean-4.30.0-rc2-windows.zip"
+if ($LASTEXITCODE -ne 0) {
+  throw "Lean runtime download failed with exit code $LASTEXITCODE"
+}
+$runtimeSha = (
+  Get-FileHash -LiteralPath $runtimeZip -Algorithm SHA256
+).Hash.ToLowerInvariant()
+if ($runtimeSha -cne "cb0688631203ac7832e447a5791e51e88db938b6038ff788eea73491619988b2") {
+  throw "Lean runtime SHA-256 mismatch: $runtimeSha"
+}
+[void](New-Item -ItemType Directory -Path $runtimeRoot)
+& tar.exe -xf $runtimeZip -C $runtimeRoot
+if ($LASTEXITCODE -ne 0) {
+  throw "Lean runtime extraction failed with exit code $LASTEXITCODE"
+}
+$lean = @(Get-ChildItem -LiteralPath $runtimeRoot -Recurse -File `
+  -Filter lean.exe | Where-Object { $_.Directory.Name -ceq "bin" })
+$lake = @(Get-ChildItem -LiteralPath $runtimeRoot -Recurse -File `
+  -Filter lake.exe | Where-Object { $_.Directory.Name -ceq "bin" })
+if ($lean.Count -ne 1 -or $lake.Count -ne 1) {
+  throw "authenticated runtime must contain exactly one lean.exe and lake.exe"
+}
+if ($lean[0].Directory.FullName -cne $lake[0].Directory.FullName) {
+  throw "authenticated Lean and Lake are not in the same bin directory"
+}
+$leanSha = (
+  Get-FileHash -LiteralPath $lean[0].FullName -Algorithm SHA256
+).Hash.ToLowerInvariant()
+if ($leanSha -cne "5bead9b39d9a23306507fb59277995b94e71787d86d76a9ed3fb248b1ed3f995") {
+  throw "Lean executable SHA-256 mismatch: $leanSha"
+}
+$lakeSha = (
+  Get-FileHash -LiteralPath $lake[0].FullName -Algorithm SHA256
+).Hash.ToLowerInvariant()
+if ($lakeSha -cne "9befc94126195bc2057109e2cfc1207962739ba1b5fc03b8b955be4e27210eed") {
+  throw "Lake executable SHA-256 mismatch: $lakeSha"
+}
+$runtimeBin = $lean[0].Directory.FullName
+$env:PATH = $runtimeBin + [IO.Path]::PathSeparator + $env:PATH
+& $lean[0].FullName --version
+if ($LASTEXITCODE -ne 0) {
+  throw "authenticated Lean version probe failed with exit code $LASTEXITCODE"
+}
 
 $receipt = "D:\erdos848-receipts\clean-$([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))"
 python -B lean/run_completion_gate.py `
   --upstream-root external/erdos-848-squarefree-product `
+  --runtime-bin $runtimeBin `
   --receipt-dir $receipt `
   --memory-mib 32768
 ```
 
 The runner refuses a non-Windows host, a dirty or mispinned source tree,
-pre-existing project OLeans, insufficient resources, a moving dependency, a
-forbidden axiom, a missing endpoint report, source drift, or a nonempty receipt
-directory. It never runs `lake update`. It compiles the literal theorem in
+project OLeans present either before or after cache bootstrap, insufficient
+resources, a moving dependency, a forbidden axiom, a missing endpoint report,
+source drift, or a nonempty receipt directory. It never runs `lake update`. It
+compiles the literal theorem in
 `lean/Erdos848Completion/Final.lean`, runs trust zero over the complete import
 closure, checks all 15 upstream plus four root axiom reports, and records the
 dependency output. Only the full success path prints:
+
+Lake may report nonexistent build directories for packages that export no Lean
+modules. The runner omits those inert entries from its explicit `LEAN_PATH`;
+every existing entry remains subject to the namespace-provenance audit.
 
 ```text
 LEAN COMPLETION GATE PASSED
@@ -325,6 +395,35 @@ LEAN COMPLETION GATE PASSED
 
 The emitted receipt is still subject to independent review before it may be
 copied into `lean/receipts/` or used to promote `L1`, `L2`, or `V0`.
+
+The tracked manual workflow wraps that exact gate for a uniquely labelled,
+isolated self-hosted runner. It is currently unexecuted and therefore supplies
+no proof evidence or node promotion. No qualifying host is currently available
+to the maintainer. If an external verifier supplies one, register exactly one
+Windows/X64 runner with the custom label `erdos848-art006`, pre-create
+`D:\erdos848-verification` on the large-volume disk, and dispatch from the
+default branch:
+
+```sh
+gh workflow run art006-full-source-completion.yml \
+  -f confirm_full_gate=true \
+  -f 'persistent_root=D:\erdos848-verification'
+gh run list --workflow art006-full-source-completion.yml --limit 1
+```
+
+The build job writes outside the checkout to a run-id-bound persistent
+directory. A dependent job on the same uniquely labelled host receives a fresh
+job token, replays the strict receipt negative controls, verifies canonical
+JSON, exact types and schemas, the receipt/log hash chain, the successful build
+result, and all 19 axiom endpoints, then uploads the result. Python is fixed to
+`3.12.10`; the Windows `psutil==7.2.2` wheel is authenticated by the hash in
+`lean/requirements-completion.txt`; Git long-path support is supplied through
+per-process environment config. This split is intentional because a
+self-hosted job may run longer than the documented 24-hour `GITHUB_TOKEN`
+lifetime. See
+`diagnostics/FULL_SOURCE_COMPLETION_ROUTE.md` for the exact host assumptions,
+pilot audit, exact distinction between mutation-tested and directly validated
+properties, and promotion boundary.
 
 The documented clean source route, run from the candidate root, is:
 
@@ -352,12 +451,55 @@ python3 -B scripts/run_kernel_gates.py --memory-mib 32768
 This route has **not** completed on the current 16 GiB host. It is recorded as
 a required future command, not as a passing result. The published gate needs
 32,768 MiB plus a 1,024 MiB guard reserve, so a nominal 32 GiB machine is too
-small. Use a persistent Windows x86-64 host with 64 GiB RAM and at least 170
+small. Use a persistent Windows x86-64 host with 64 GiB RAM and at least 200
 GiB genuinely free storage, preferably a 300 GiB-or-larger SSD and a short
 checkout path. Install and record `psutil==7.2.2`; the release imports it but
 does not pin it. The exact cone, disk calculation, portability defects, and
 guarded failures are in `docs/artifact-audit.md` and `docs/lean-audit.md`.
 The unmodified `--direct-lean` kernel gate is Windows-only.
+
+### Diagnostic distributed source-build pilot
+
+The diagnostic checkpoint implementation is separately testable without Lean:
+
+```sh
+python3 -B diagnostics/test_lean_checkpoint_plan.py
+```
+
+Expected final line:
+
+```text
+ALL LEAN CHECKPOINT PILOT MUTATION CONTROLS PASSED
+```
+
+The manual GitHub Actions workflow
+`.github/workflows/lean-source-checkpoint-pilot.yml` then generates an exact
+two-segment plan and source-builds `Erdos848.ProblemCore` followed by
+`Erdos848.SharpnessCore` on two independent Windows checkouts. The second job
+may import project OLeans only from the verified first-segment artifact. Its
+terminal marker is:
+
+```text
+DIAGNOSTIC SOURCE CHECKPOINT SEGMENT PASSED index=1
+```
+
+The canonical segment receipts establish byte integrity and enforce the exact
+declared compiler/runtime metadata. They are not independent execution
+attestations: retain the exact GitHub run identity and compile logs with any
+pilot result. A caller-created receipt and OLean pair is not source-build
+evidence.
+
+This marker is intentionally not `LEAN COMPLETION GATE PASSED`. The pilot does
+not cover the publication closure, root theorem, live axiom reports, or final
+dependency audit, and cannot promote any pending Lean or completion node.
+
+Pilot run `31541505450` completed both segments. Its canonical plan digest is
+`6459fb1d...211c`; segment receipts are `a77dda29...4640` and
+`a976945c...e84`. Replaying the downloaded plan and receipts against the exact
+source pin passed. The pilot verifier deliberately accepts only genesis
+parents and its artifacts carry only their own segment OLeans, so it must not
+be extended naively beyond dependency depth one. The complete route is the
+single-host zero-OLean gate above, not a longer direct-parent artifact chain.
 
 Optional noninstalling APFS capacity diagnostic, which transiently uses about
 2.6 GiB and downloads one 448 MiB shard:

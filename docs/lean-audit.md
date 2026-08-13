@@ -109,11 +109,13 @@ interval, ordered-pair predicate (including the diagonal), and exact filtered
 benchmark. Separate residue-7 and residue-18 witnesses avoid a uniqueness
 overclaim.
 
-The runner authenticates the ART-006 commit/tree, Lean tree, toolchain,
-mathlib pin, key source hashes, and complete 30,638-file source census. Its
+The runner authenticates the ART-006 commit/tree, Lean tree, exact Windows
+runtime archive and Lean/Lake executable digests, toolchain, mathlib pin, key
+source hashes, and complete 30,638-file source census. Its
 bounded mutation suite rejects malformed locks/axiom reports, inherited Lean
-module paths, package-cache namespace shadows, right-named OLeans from the
-wrong root, and surviving child processes. The local `--source-audit-only`
+module paths, missing or shadowed explicit runtime directories, project OLeans
+injected during cache bootstrap, package-cache namespace shadows, right-named
+OLeans from the wrong root, and surviving child processes. The local `--source-audit-only`
 mode passes, but that mode explicitly performs no build or kernel check. The
 full Windows-only path refuses existing or unexpected project OLeans,
 insufficient RAM/disk, dirty source, forbidden axioms, missing live reports,

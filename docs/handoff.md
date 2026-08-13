@@ -83,7 +83,10 @@ statement, static trust-surface, acyclic import-closure, and noncircular
 certificate-semantic audits. It has not passed the required clean source build,
 trust-zero replay, live `#print axioms`, or final declaration-dependency audit.
 
-This 16 GiB macOS host cannot safely run those stages:
+The maintainer has confirmed that no qualifying Windows host is available.
+An account/environment audit found zero registered self-hosted runners and no
+configured cloud or VM route. This 16 GiB macOS host cannot safely run the
+stages, and standard hosted Windows runners cannot satisfy them:
 
 - the unconditional provider cone has 30,636 modules and the publication
   closure has 30,638;
@@ -94,19 +97,23 @@ This 16 GiB macOS host cannot safely run those stages:
 
 The tracked `lean/` entrypoint supplies a literal positive-`N` theorem,
 both sharp residue witnesses, a 19-endpoint axiom audit, an immutable source
-lock, and a guarded Windows completion runner. Its source-lock/census audit
-passes locally, but it is deliberately unverified until compiled. Therefore
-`LROOT`, `L1`, `L2`, `RCLEAN`, `V0`, and the protocol target `P848` remain
-open. These are formal-assurance/execution blockers, not a counterexample or a
-gap in `M0`.
+lock, and a guarded Windows completion runner. The reviewed runner is bound to
+the exact authenticated Lean archive and Lean/Lake executable hashes, rechecks
+zero project OLeans after cache bootstrap, and has a strict second-job receipt
+validator. Its source-lock/census and mutation audits pass locally, but it is
+deliberately unverified until the full source build runs. Therefore `LROOT`,
+`L1`, `L2`, `RCLEAN`, `V0`, and the protocol target `P848` remain open. These
+are formal-assurance/execution blockers, not a counterexample or a gap in
+`M0`.
 
 ## Exact next actions
 
 1. Preserve the independently audited CD0 receipt and use the documented fresh
    command for any additional reproduction; never substitute a resumed chain.
-2. Use a persistent Windows x86-64 host with 64 GiB RAM and at least 200 GiB
-   free disk (300 GiB preferred) and run `lean/run_completion_gate.py` exactly
-   as documented, without `lake update`.
+2. If an external contributor supplies a persistent Windows x86-64 host with
+   64 GiB RAM and at least 200 GiB free disk, run the reviewed manual workflow
+   exactly as documented, without `lake update` or weakened gates. No such host
+   is currently available to the maintainer.
 3. Capture the clean-build logs, trust-zero theorem replay, all 15 upstream
    plus four root live `#print axioms` outputs, source census, and dependency
    report; verify that only `propext`, `Classical.choice`, and `Quot.sound`
@@ -119,6 +126,28 @@ gap in `M0`.
 Do not retry progressively larger Lean caps on this Mac, substitute the
 published OLean cache for the required clean source build, or treat either
 preflight-only mode as a completion receipt.
+
+The diagnostic two-module checkpoint pilot completed in run `31541505450`:
+`ProblemCore -> SharpnessCore` built from zero project OLeans and the same-run
+byte receipts verified. It promotes no formal node. Naively extending it is
+unsound because its artifacts do not carry a recursively complete transitive
+OLean closure; this is `REVISE_DECOMPOSITION`.
+
+The fastest sound full-source workflow has been independently reviewed and is
+published as explicitly **unexecuted** infrastructure. It requires one uniquely
+labelled self-hosted Windows x64 runner with the resources above. The workflow
+itself, its static audit, and its mutation controls are not Lean proof evidence
+and change no DAG status. Historical diagnostic workflows are manual-only.
+
+The final standard-host cache canary, run `31707223170`, authenticated all 75
+cache shards, the exact upstream checkout, all nine Lake dependencies, and the
+Mathlib cache bootstrap. It failed before invoking Lean because Lake emitted a
+nonexistent `Cli` module-search directory. No success receipt or PASS marker
+exists; classification is `REPAIR_EXECUTION`. The shared canary/full-gate path
+now omits nonexistent search entries from the explicit `LEAN_PATH` while
+retaining active-root provenance checks. Local fail-closed controls pass, but
+the repair is unexecuted and promotes no formal node. Do not spend another
+standard hosted run on this non-clean diagnostic.
 
 ## Decisive pins
 

@@ -1,0 +1,289 @@
+name: ART-006 full source completion
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_full_gate:
+        description: Run the 30,636-module clean source build and all final Lean gates
+        required: true
+        default: false
+        type: boolean
+      persistent_root:
+        description: Existing large-volume directory retained between the build and publish jobs
+        required: true
+        default: 'D:\erdos848-verification'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: art006-full-source-completion
+  cancel-in-progress: false
+
+env:
+  ART006_REVISION: ede0151a35c86b6395cf67dd034811d22a92c7ba
+  LEAN_RUNTIME_URL: https://github.com/leanprover/lean4/releases/download/v4.30.0-rc2/lean-4.30.0-rc2-windows.zip
+  LEAN_RUNTIME_SHA256: cb0688631203ac7832e447a5791e51e88db938b6038ff788eea73491619988b2
+  GIT_CONFIG_COUNT: '1'
+  GIT_CONFIG_KEY_0: core.longpaths
+  GIT_CONFIG_VALUE_0: 'true'
+
+jobs:
+  full_source_completion:
+    name: Clean source build and 19-endpoint gate
+    if: ${{ inputs.confirm_full_gate }}
+    runs-on: [self-hosted, Windows, X64, erdos848-art006]
+    timeout-minutes: 7200
+    steps:
+      - name: Check out the exact completion protocol
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: proof
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Check out fresh exact ART-006 sources
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: crabsatellite/erdos-848-squarefree-product
+          ref: ${{ env.ART006_REVISION }}
+          path: source
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Select pinned Python series
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12.10'
+          architecture: x64
+
+      - name: Install the authenticated Lean runtime
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $runtimeBase = Join-Path $env:RUNNER_TEMP 'erdos848-art006-runtime'
+          if (Test-Path -LiteralPath $runtimeBase) {
+            throw "runtime directory already exists: $runtimeBase"
+          }
+          [void](New-Item -ItemType Directory -Path $runtimeBase)
+          $archive = Join-Path $runtimeBase 'lean-4.30.0-rc2-windows.zip'
+          & curl.exe --location --fail --silent --show-error --retry 5 `
+            --retry-all-errors --output $archive $env:LEAN_RUNTIME_URL
+          if ($LASTEXITCODE -ne 0) {
+            throw "Lean runtime download failed with exit code $LASTEXITCODE"
+          }
+          $digest = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($digest -cne $env:LEAN_RUNTIME_SHA256) {
+            throw "Lean runtime SHA-256 mismatch: $digest"
+          }
+          $extracted = Join-Path $runtimeBase 'extracted'
+          [void](New-Item -ItemType Directory -Path $extracted)
+          & tar.exe -xf $archive -C $extracted
+          if ($LASTEXITCODE -ne 0) {
+            throw "Lean runtime extraction failed with exit code $LASTEXITCODE"
+          }
+          $lean = @(Get-ChildItem -LiteralPath $extracted -Recurse -File -Filter lean.exe |
+            Where-Object { $_.Directory.Name -ceq 'bin' })
+          $lake = @(Get-ChildItem -LiteralPath $extracted -Recurse -File -Filter lake.exe |
+            Where-Object { $_.Directory.Name -ceq 'bin' })
+          if ($lean.Count -ne 1 -or $lake.Count -ne 1) {
+            throw 'authenticated runtime did not contain exactly one lean.exe and lake.exe'
+          }
+          if ($lean[0].Directory.FullName -cne $lake[0].Directory.FullName) {
+            throw 'Lean and Lake resolved from different runtime directories'
+          }
+          $leanSha = (Get-FileHash -LiteralPath $lean[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($leanSha -cne '5bead9b39d9a23306507fb59277995b94e71787d86d76a9ed3fb248b1ed3f995') {
+            throw "Lean executable SHA-256 mismatch: $leanSha"
+          }
+          $lakeSha = (Get-FileHash -LiteralPath $lake[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($lakeSha -cne '9befc94126195bc2057109e2cfc1207962739ba1b5fc03b8b955be4e27210eed') {
+            throw "Lake executable SHA-256 mismatch: $lakeSha"
+          }
+          $runtimeBin = $lean[0].Directory.FullName
+          $runtimeBin |
+            Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "E848_RUNTIME_BIN=$runtimeBin" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          & $lean[0].FullName --version
+          if ($LASTEXITCODE -ne 0) {
+            throw "Lean version probe failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Install the pinned process guard dependency
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install --disable-pip-version-check `
+            --only-binary=:all: --require-hashes `
+            --requirement proof/lean/requirements-completion.txt
+          if ($LASTEXITCODE -ne 0) {
+            throw "psutil installation failed with exit code $LASTEXITCODE"
+          }
+          python -c "import psutil; assert psutil.__version__ == '7.2.2'; print(psutil.__version__)"
+          if ($LASTEXITCODE -ne 0) {
+            throw "psutil version gate failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Initialize the persistent execution handoff
+        shell: pwsh
+        env:
+          E848_PERSISTENT_ROOT: ${{ inputs.persistent_root }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          if (-not [IO.Path]::IsPathRooted($env:E848_PERSISTENT_ROOT)) {
+            throw 'persistent_root must be an absolute Windows path'
+          }
+          $persistent = [IO.Path]::GetFullPath($env:E848_PERSISTENT_ROOT)
+          if ($persistent -ceq [IO.Path]::GetPathRoot($persistent)) {
+            throw 'persistent_root must not be a drive root'
+          }
+          if (-not (Test-Path -LiteralPath $persistent -PathType Container)) {
+            throw "persistent_root must already exist: $persistent"
+          }
+          $persistentItem = Get-Item -LiteralPath $persistent -Force
+          if (($persistentItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw 'persistent_root must not be a reparse point'
+          }
+          $runRoot = Join-Path $persistent (
+            'run-' + $env:GITHUB_RUN_ID + '-attempt-' + $env:GITHUB_RUN_ATTEMPT
+          )
+          if (Test-Path -LiteralPath $runRoot) {
+            throw "fresh run root already exists: $runRoot"
+          }
+          [void](New-Item -ItemType Directory -Path $runRoot)
+          $receipt = Join-Path $runRoot 'receipt'
+          python -B proof/lean/validate_completion_workflow.py initialize `
+            --run-root $runRoot `
+            --run-id $env:GITHUB_RUN_ID `
+            --run-attempt $env:GITHUB_RUN_ATTEMPT `
+            --head-sha $env:GITHUB_SHA `
+            --runner-name $env:RUNNER_NAME
+          if ($LASTEXITCODE -ne 0) {
+            throw "persistent handoff initialization failed with exit code $LASTEXITCODE"
+          }
+          "E848_RUN_ROOT=$runRoot" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "E848_RECEIPT_DIR=$receipt" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "PERSISTENT HANDOFF INITIALIZED run_root=$runRoot runner=$env:RUNNER_NAME"
+
+      - name: Replay bounded completion-gate mutations
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -B proof/lean/test_completion_gate.py
+          if ($LASTEXITCODE -ne 0) {
+            throw "completion mutation suite failed with exit code $LASTEXITCODE"
+          }
+          python -B proof/lean/test_completion_workflow.py
+          if ($LASTEXITCODE -ne 0) {
+            throw "workflow receipt mutation suite failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Authenticate the full source closure without compiling
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -B proof/lean/run_completion_gate.py `
+            --upstream-root source `
+            --source-audit-only
+          if ($LASTEXITCODE -ne 0) {
+            throw "source audit failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Build from zero project OLeans and run every final gate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -B proof/lean/run_completion_gate.py `
+            --upstream-root source `
+            --runtime-bin $env:E848_RUNTIME_BIN `
+            --receipt-dir $env:E848_RECEIPT_DIR `
+            --memory-mib 32768
+          if ($LASTEXITCODE -ne 0) {
+            throw "Lean completion gate failed with exit code $LASTEXITCODE"
+          }
+          python -B proof/lean/validate_completion_workflow.py seal `
+            --run-root $env:E848_RUN_ROOT `
+            --repository proof `
+            --run-id $env:GITHUB_RUN_ID `
+            --run-attempt $env:GITHUB_RUN_ATTEMPT `
+            --head-sha $env:GITHUB_SHA `
+            --runner-name $env:RUNNER_NAME
+          if ($LASTEXITCODE -ne 0) {
+            throw "completion receipt sealing failed with exit code $LASTEXITCODE"
+          }
+
+  publish_receipt:
+    name: Publish persistent receipt with a fresh job token
+    needs: full_source_completion
+    if: ${{ always() && inputs.confirm_full_gate }}
+    runs-on: [self-hosted, Windows, X64, erdos848-art006]
+    timeout-minutes: 60
+    steps:
+      - name: Check out the exact receipt verifier context
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: receipt-audit
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Select the exact receipt-verifier Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12.10'
+          architecture: x64
+
+      - name: Replay receipt-validator mutations
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -B receipt-audit/lean/test_completion_workflow.py
+          if ($LASTEXITCODE -ne 0) {
+            throw "workflow receipt mutation suite failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Validate same-host handoff and receipt chain
+        id: validate
+        shell: pwsh
+        env:
+          E848_PERSISTENT_ROOT: ${{ inputs.persistent_root }}
+          E848_BUILD_RESULT: ${{ needs.full_source_completion.result }}
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $persistent = [IO.Path]::GetFullPath($env:E848_PERSISTENT_ROOT)
+          $runRoot = Join-Path $persistent (
+            'run-' + $env:GITHUB_RUN_ID + '-attempt-' + $env:GITHUB_RUN_ATTEMPT
+          )
+          if (-not (Test-Path -LiteralPath $runRoot -PathType Container)) {
+            throw "persistent run root is missing: $runRoot"
+          }
+          python -B receipt-audit/lean/validate_completion_workflow.py validate `
+            --run-root $runRoot `
+            --repository receipt-audit `
+            --run-id $env:GITHUB_RUN_ID `
+            --run-attempt $env:GITHUB_RUN_ATTEMPT `
+            --head-sha $env:GITHUB_SHA `
+            --runner-name $env:RUNNER_NAME `
+            --build-result $env:E848_BUILD_RESULT
+          if ($LASTEXITCODE -ne 0) {
+            throw "strict receipt validation failed with exit code $LASTEXITCODE"
+          }
+          "run_root=$runRoot" |
+            Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Upload success or failure receipt tree
+        if: ${{ always() && steps.validate.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: art006-full-source-${{ github.run_id }}-${{ github.run_attempt }}-${{ needs.full_source_completion.result }}
+          path: ${{ steps.validate.outputs.run_root }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6

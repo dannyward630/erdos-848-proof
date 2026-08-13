@@ -198,4 +198,34 @@
 - **Replacement direction:** Retain the actual-$N$ square through
   normalization; use the interval endpoint only after cancellation.
 
+## FL-014 — the published ART-006 OLean cache is byte-reproducible from the exact source builder
+
+- **Exact claim:** Recompiling an authenticated ART-006 module at the pinned
+  source and toolchain with the upstream builder's exact command produces the
+  byte-identical OLean stored in release `v1.0.5-kernel`, so the release cache
+  can serve as a content-addressed clean-build checkpoint.
+- **Exact counterexample:** On Windows x86-64 with Lean `v4.30.0-rc2`, six
+  compilations of `Erdos848/ProblemCore.lean` using
+  `--trust=0 -q -M <cap> -D compiler.postponeCompile=true` at caps 6,144,
+  12,288, 15,360, 24,576 twice, and 32,768 MiB all produced 95,616 bytes with
+  SHA-256
+  `e1455c5e0883259cc895c07681378570954d8e1fc7c6cbc22a9e162c1ea9635a`.
+  The authenticated release OLean is 95,664 bytes with SHA-256
+  `324f23465ac359c47291515bb3faaed5be7046341ad580bb46613eec81e47a4d`.
+  The repeated 24,576-MiB outputs were byte-identical, so output-path drift
+  does not explain the mismatch.
+- **Verification method:** GitHub Actions run `31538242639` at diagnostic
+  commit `d9aaedb7d80a950971bb59d44cd8dc073f986923`; canonical diagnostic receipt
+  SHA-256
+  `0a36d2d52679d694a579908b98f332d14bf08a07b169f62e81558a7cbceb3c72`.
+- **Impact:** The published cache may support a separately labelled live
+  trust-zero/axiom canary, but it cannot discharge `L1`, establish
+  source-to-OLean correspondence, or replace a zero-project-OLean source
+  build.
+- **Retry classification:** `AUDIT_COMPUTATION`.
+- **Replacement direction:** Use a genesis-anchored, hash-chained distributed
+  source build in topological order; every project OLean must trace to an
+  authenticated trust-zero compilation, followed by a full source-built
+  finalizer and independent receipt review.
+
 For each future entry, record the exact claim, smallest known exact counterexample, verification method, impact on the proof DAG, retry classification, and replacement direction.

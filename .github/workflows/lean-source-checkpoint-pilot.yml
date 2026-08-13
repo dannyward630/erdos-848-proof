@@ -1,0 +1,202 @@
+name: Lean source checkpoint pilot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  ART006_REVISION: ede0151a35c86b6395cf67dd034811d22a92c7ba
+
+jobs:
+  powershell-parse:
+    name: PowerShell-parser-smoke
+    runs-on: windows-2025
+    timeout-minutes: 5
+    steps:
+      - name: Check out diagnostic protocol
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Parse the segment builder before allocating build jobs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          [void][scriptblock]::Create(
+            (Get-Content -LiteralPath diagnostics/build_lean_checkpoint_segment.ps1 -Raw)
+          )
+          Write-Host "POWERSHELL PARSE PASSED build_lean_checkpoint_segment.ps1"
+
+  plan:
+    name: Canonical-plan-and-mutations
+    needs: powershell-parse
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out diagnostic protocol
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: proof
+
+      - name: Check out the exact two-module ART-006 closure
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: crabsatellite/erdos-848-squarefree-product
+          ref: ${{ env.ART006_REVISION }}
+          path: source
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /lean4/lean-toolchain
+            /lean4/lakefile.toml
+            /lean4/lake-manifest.json
+            /lean4/Erdos848/ProblemCore.lean
+            /lean4/Erdos848/SharpnessCore.lean
+
+      - name: Run fail-closed mutation controls
+        run: python3 -B proof/diagnostics/test_lean_checkpoint_plan.py
+
+      - name: Generate and replay the immutable topological plan
+        run: |
+          python3 -B proof/diagnostics/lean_checkpoint_plan.py generate \
+            --source-root source \
+            --lock proof/lean/source-lock.json \
+            --target Erdos848.SharpnessCore \
+            --modules-per-segment 1 \
+            --output "${RUNNER_TEMP}/lean-checkpoint-plan.json"
+          cmp proof/diagnostics/lean-checkpoint-pilot-plan.json \
+            "${RUNNER_TEMP}/lean-checkpoint-plan.json"
+          python3 -B proof/diagnostics/lean_checkpoint_plan.py verify-plan \
+            --plan "${RUNNER_TEMP}/lean-checkpoint-plan.json" \
+            --source-root source \
+            --lock proof/lean/source-lock.json
+
+      - name: Upload canonical plan
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: lean-checkpoint-plan
+          path: ${{ runner.temp }}/lean-checkpoint-plan.json
+          if-no-files-found: error
+          retention-days: 7
+
+  segment-0:
+    name: Segment-0-genesis-ProblemCore
+    needs: plan
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - name: Check out diagnostic protocol
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: proof
+
+      - name: Check out fresh exact ART-006 sources
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: crabsatellite/erdos-848-squarefree-product
+          ref: ${{ env.ART006_REVISION }}
+          path: source
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /lean4/lean-toolchain
+            /lean4/lakefile.toml
+            /lean4/lake-manifest.json
+            /lean4/Erdos848/ProblemCore.lean
+            /lean4/Erdos848/SharpnessCore.lean
+
+      - name: Select pinned Python series
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+          architecture: x64
+
+      - name: Download canonical plan
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: lean-checkpoint-plan
+          path: ${{ runner.temp }}/plan
+
+      - name: Build genesis segment from zero project OLeans
+        shell: pwsh
+        run: |
+          ./proof/diagnostics/build_lean_checkpoint_segment.ps1 `
+            -SourceRoot source `
+            -PlanPath (Join-Path $env:RUNNER_TEMP "plan/lean-checkpoint-plan.json") `
+            -LockPath proof/lean/source-lock.json `
+            -SegmentIndex 0 `
+            -OutputRoot (Join-Path $env:RUNNER_TEMP "segment-0")
+
+      - name: Upload genesis source-built asset
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: lean-checkpoint-segment-0
+          path: ${{ runner.temp }}/segment-0
+          if-no-files-found: error
+          retention-days: 7
+
+  segment-1:
+    name: Segment-1-child-SharpnessCore
+    needs: segment-0
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - name: Check out diagnostic protocol
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: proof
+
+      - name: Check out another fresh exact ART-006 source tree
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: crabsatellite/erdos-848-squarefree-product
+          ref: ${{ env.ART006_REVISION }}
+          path: source
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /lean4/lean-toolchain
+            /lean4/lakefile.toml
+            /lean4/lake-manifest.json
+            /lean4/Erdos848/ProblemCore.lean
+            /lean4/Erdos848/SharpnessCore.lean
+
+      - name: Select pinned Python series
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+          architecture: x64
+
+      - name: Download plan and same-run content-checked genesis asset
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: lean-checkpoint-*
+          path: ${{ runner.temp }}/inputs
+
+      - name: Build child using only same-run parent project OLeans
+        shell: pwsh
+        run: |
+          ./proof/diagnostics/build_lean_checkpoint_segment.ps1 `
+            -SourceRoot source `
+            -PlanPath (Join-Path $env:RUNNER_TEMP "inputs/lean-checkpoint-plan/lean-checkpoint-plan.json") `
+            -LockPath proof/lean/source-lock.json `
+            -SegmentIndex 1 `
+            -ParentRoot (Join-Path $env:RUNNER_TEMP "inputs/lean-checkpoint-segment-0") `
+            -OutputRoot (Join-Path $env:RUNNER_TEMP "segment-1")
+
+      - name: Upload child source-built asset
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: lean-checkpoint-segment-1
+          path: ${{ runner.temp }}/segment-1
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Mark diagnostic boundary
+        shell: bash
+        run: |
+          {
+            echo '# Lean source checkpoint pilot'
+            echo
+            echo 'Two dependent source-built segments completed from fresh project-OLean genesis.'
+            echo 'Canonical receipts record byte integrity; the GitHub run and logs are the execution provenance.'
+            echo 'This diagnostic does not run the full ART-006 closure, final theorem, trust-zero root replay, or axiom gate.'
+            echo 'It cannot promote LROOT, L1, L2, RCLEAN, V0, or P848.'
+          } >> "$GITHUB_STEP_SUMMARY"
