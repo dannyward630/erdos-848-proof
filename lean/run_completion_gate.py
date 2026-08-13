@@ -64,7 +64,7 @@ AUDIT_SOURCE_SHA256 = (
     'fdbad8d9dc8f084b8fa3acb86a3ef395d792f5622c5b5dfe070bdab4398d42c6'
 )
 TEST_SOURCE_SHA256 = (
-    '83fcac5a4af05d81e8e32d5b24ac3552ee94cdbad16b78bc0971cb8a7d9bffe1'
+    '21de8459302a5590d5a8b530a05a9ba3bf62d178154750795145f7344b4c5ede'
 )
 ALLOWED_AXIOMS = ('propext', 'Classical.choice', 'Quot.sound')
 ENDPOINTS = (
@@ -408,14 +408,22 @@ def resolved_lean_environment(
     for raw_entry in raw_path.split(os.pathsep):
         if not raw_entry:
             raise GateFailure('Lake produced an empty LEAN_PATH entry')
+        candidate = Path(raw_entry)
+        if candidate.is_symlink():
+            raise GateFailure(f'Lake produced an unsafe LEAN_PATH entry: {candidate}')
+        if not candidate.exists():
+            # Lake may include package build directories for packages that do
+            # not export Lean modules.  A nonexistent entry cannot resolve a
+            # module; omit it from the explicit environment used below.
+            continue
         try:
-            entry = Path(raw_entry).resolve(strict=True)
+            entry = candidate.resolve(strict=True)
         except OSError as error:
             raise GateFailure(
                 f'Lake produced an unavailable LEAN_PATH entry: '
                 f'{raw_entry!r}: {error}'
             ) from error
-        if not entry.is_dir() or entry.is_symlink():
+        if not entry.is_dir():
             raise GateFailure(f'Lake produced an unsafe LEAN_PATH entry: {entry}')
         if entry in entries:
             raise GateFailure(f'Lake produced a duplicate LEAN_PATH entry: {entry}')

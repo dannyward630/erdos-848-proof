@@ -302,14 +302,24 @@ def resolved_authenticated_lake_environment(
             raise CanaryFailure(
                 "resolve-authenticated-lake-path: empty LEAN_PATH entry"
             )
+        candidate = Path(raw_entry)
+        if candidate.is_symlink():
+            raise CanaryFailure(
+                f"resolve-authenticated-lake-path: unsafe LEAN_PATH entry: {candidate}"
+            )
+        if not candidate.exists():
+            # Lake can list build directories for packages with no exported
+            # Lean modules.  Missing entries cannot resolve modules and are
+            # deliberately omitted from the explicit environment.
+            continue
         try:
-            entry = Path(raw_entry).resolve(strict=True)
+            entry = candidate.resolve(strict=True)
         except OSError as error:
             raise CanaryFailure(
                 "resolve-authenticated-lake-path: unavailable LEAN_PATH entry: "
                 f"{raw_entry!r}: {error}"
             ) from error
-        if not entry.is_dir() or entry.is_symlink():
+        if not entry.is_dir():
             raise CanaryFailure(
                 f"resolve-authenticated-lake-path: unsafe LEAN_PATH entry: {entry}"
             )
@@ -1142,14 +1152,10 @@ def run_self_tests() -> int:
         isolated_env = {"PATH": str(authenticated_lake.parent)}
         gate.capture = reject_bare_lake
         try:
-            try:
-                resolved_authenticated_lake_environment(
-                    root, isolated_env, authenticated_lake
-                )
-            except CanaryFailure as error:
-                assert "unavailable LEAN_PATH entry" in str(error)
-            else:
-                raise AssertionError("missing pre-cache LEAN_PATH entry was accepted")
+            resolved_lean, resolved_entries = resolved_authenticated_lake_environment(
+                root, isolated_env, authenticated_lake
+            )
+            assert resolved_entries == (project_path.resolve(strict=True),)
             package_path.mkdir()
             captured_commands.clear()
             resolved_lean, resolved_entries = resolved_authenticated_lake_environment(

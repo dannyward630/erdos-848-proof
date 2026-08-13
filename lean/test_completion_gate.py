@@ -220,13 +220,13 @@ def main() -> int:
 
             runner.capture = fake_lake_capture
             try:
-                expect_rejected(
-                    runner,
-                    lambda: runner.resolved_lean_environment(
-                        base, {"PATH": str(runtime_bin)}, lake
-                    ),
-                    "missing pre-cache LEAN_PATH entry",
+                resolved_lean, resolved_entries = runner.resolved_lean_environment(
+                    base, {"PATH": str(runtime_bin)}, lake
                 )
+                if resolved_entries != (project_path.resolve(strict=True),):
+                    raise RuntimeError(
+                        "nonexistent Lake module path was not omitted"
+                    )
                 future_path.mkdir()
                 captured_commands.clear()
                 resolved_lean, resolved_entries = runner.resolved_lean_environment(
