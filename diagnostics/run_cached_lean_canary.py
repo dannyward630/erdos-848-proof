@@ -651,6 +651,22 @@ def publication_module_name(cache_path: str) -> str:
     return ".".join(relative.parts)
 
 
+def require_exact_module_inventory(
+    expected: Iterable[str], observed: Iterable[str]
+) -> tuple[str, ...]:
+    """Compare module inventories in one platform-independent canonical order."""
+    expected_names = tuple(sorted(expected))
+    observed_names = tuple(sorted(observed))
+    if expected_names != observed_names:
+        missing = sorted(set(expected_names) - set(observed_names))
+        extra = sorted(set(observed_names) - set(expected_names))
+        raise CanaryFailure(
+            "installed project OLean module inventory mismatch: "
+            f"missing={missing[:3]} extra={extra[:3]}"
+        )
+    return observed_names
+
+
 def verify_cache_inventory(
     upstream: Path, files: dict[str, dict[str, Any]], *, hash_contents: bool
 ) -> dict[str, Any]:
@@ -675,9 +691,9 @@ def verify_cache_inventory(
         if hash_contents and index % 1000 == 0:
             print(f"OLEAN_POSTFLIGHT {index}/{len(files)}", flush=True)
     names.sort()
-    observed_names = gate.built_project_modules(upstream / "lean4")
-    if tuple(names) != observed_names:
-        raise CanaryFailure("installed project OLean module inventory mismatch")
+    observed_names = require_exact_module_inventory(
+        names, gate.built_project_modules(upstream / "lean4")
+    )
     if len(names) != EXPECTED_MODULES or logical_bytes != EXPECTED_LOGICAL_BYTES:
         raise CanaryFailure("installed OLean count or logical-byte total mismatch")
     if gate.module_list_digest(names) != gate.PUBLICATION_MODULE_LIST_SHA256:
@@ -933,6 +949,29 @@ def run_self_tests() -> int:
     assert source_to_olean("lean4/Erdos848/Foo.lean") == (
         "lean4/.lake/build/lib/lean/Erdos848/Foo.olean"
     )
+    expected_modules = (
+        "Erdos848.TailCRTCounting",
+        "Erdos848.TailCombinatorics",
+    )
+    windows_path_order = (
+        "Erdos848.TailCombinatorics",
+        "Erdos848.TailCRTCounting",
+    )
+    assert require_exact_module_inventory(
+        expected_modules, windows_path_order
+    ) == expected_modules
+    for invalid_modules in (
+        windows_path_order[:-1],
+        windows_path_order + ("Erdos848.Unexpected",),
+    ):
+        try:
+            require_exact_module_inventory(expected_modules, invalid_modules)
+        except CanaryFailure:
+            pass
+        else:
+            raise AssertionError(
+                "module inventory accepted a missing or extra module"
+            )
     from tempfile import TemporaryDirectory
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
