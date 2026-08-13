@@ -225,6 +225,102 @@ def run_capture(command: Sequence[str], cwd: Path, env: dict[str, str] | None = 
     return completed.stdout.strip()
 
 
+def resolved_authenticated_lake_environment(
+    lean4: Path, base_env: dict[str, str], lake_executable: Path,
+) -> tuple[Path, tuple[Path, ...]]:
+    """Resolve Lean and LEAN_PATH through the authenticated Lake executable."""
+
+    try:
+        lake = lake_executable.resolve(strict=True)
+    except OSError as error:
+        raise CanaryFailure(
+            f"resolve-authenticated-lake: Lake executable is unavailable: "
+            f"{lake_executable}: {error}"
+        ) from error
+    if not lake.is_file() or lake.is_symlink() or lake.name.lower() != "lake.exe":
+        raise CanaryFailure(
+            f"resolve-authenticated-lake: unsafe Lake executable: {lake}"
+        )
+
+    def lake_env(script: str, phase: str) -> str:
+        command = (str(lake), "env", sys.executable, "-c", script)
+        try:
+            return gate.capture(command, lean4, env=base_env)
+        except OSError as error:
+            raise CanaryFailure(
+                f"{phase}: authenticated Lake command could not start: "
+                f"{lake}: {error}"
+            ) from error
+        except gate.GateFailure as error:
+            raise CanaryFailure(f"{phase}: {error}") from error
+
+    if os.name == "nt":
+        resolved_lake_from_path = shutil.which(
+            "lake.exe", path=base_env.get("PATH", "")
+        )
+        if resolved_lake_from_path is None:
+            raise CanaryFailure(
+                "resolve-authenticated-lake: lake.exe is absent from the effective PATH"
+            )
+        try:
+            path_lake = Path(resolved_lake_from_path).resolve(strict=True)
+        except OSError as error:
+            raise CanaryFailure(
+                "resolve-authenticated-lake: PATH resolved an unavailable lake.exe: "
+                f"{resolved_lake_from_path}: {error}"
+            ) from error
+        if path_lake != lake:
+            raise CanaryFailure(
+                "resolve-authenticated-lake: PATH shadows the authenticated Lake: "
+                f"{path_lake} != {lake}"
+            )
+
+    which_script = (
+        "import shutil; value = shutil.which('lean'); "
+        "print(value if value is not None else '')"
+    )
+    executable_raw = lake_env(which_script, "resolve-authenticated-lake-lean")
+    try:
+        executable = Path(executable_raw).resolve(strict=True)
+    except OSError as error:
+        raise CanaryFailure(
+            "resolve-authenticated-lake-lean: Lake returned an unavailable "
+            f"Lean executable: {executable_raw!r}: {error}"
+        ) from error
+    if not executable.is_file() or executable.is_symlink():
+        raise CanaryFailure(
+            f"resolve-authenticated-lake-lean: unsafe Lean executable: {executable}"
+        )
+
+    path_script = "import os; print(os.environ.get('LEAN_PATH', ''))"
+    raw_path = lake_env(path_script, "resolve-authenticated-lake-path")
+    if not raw_path:
+        raise CanaryFailure("resolve-authenticated-lake-path: empty LEAN_PATH")
+    entries: list[Path] = []
+    for raw_entry in raw_path.split(os.pathsep):
+        if not raw_entry:
+            raise CanaryFailure(
+                "resolve-authenticated-lake-path: empty LEAN_PATH entry"
+            )
+        try:
+            entry = Path(raw_entry).resolve(strict=True)
+        except OSError as error:
+            raise CanaryFailure(
+                "resolve-authenticated-lake-path: unavailable LEAN_PATH entry: "
+                f"{raw_entry!r}: {error}"
+            ) from error
+        if not entry.is_dir() or entry.is_symlink():
+            raise CanaryFailure(
+                f"resolve-authenticated-lake-path: unsafe LEAN_PATH entry: {entry}"
+            )
+        if entry in entries:
+            raise CanaryFailure(
+                f"resolve-authenticated-lake-path: duplicate LEAN_PATH entry: {entry}"
+            )
+        entries.append(entry)
+    return executable, tuple(entries)
+
+
 def git_identity(repository: Path) -> dict[str, str]:
     revision = run_capture(("git", "rev-parse", "HEAD"), repository)
     tree = run_capture(("git", "rev-parse", "HEAD^{tree}"), repository)
@@ -1017,10 +1113,67 @@ def run_self_tests() -> int:
                 destination = runtime_root.joinpath(*PurePosixPath(relative).parts)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.write_bytes(contents)
-        _, _, runtime_inventory = authenticate_runtime_tree(
+        (
+            authenticated_lean,
+            authenticated_lake,
+            runtime_inventory,
+        ) = authenticate_runtime_tree(
             runtime_root, runtime_archive, sha256_file(runtime_archive)
         )
         assert runtime_inventory["files"] == len(runtime_files)
+        project_path = root / "project-olean"
+        package_path = root / "package-olean"
+        project_path.mkdir()
+        captured_commands: list[tuple[str, ...]] = []
+        real_capture = gate.capture
+
+        def reject_bare_lake(
+            command: Sequence[str], cwd: Path, timeout: int = 60,
+            env: dict[str, str] | None = None,
+        ) -> str:
+            del cwd, timeout, env
+            if command[0] == "lake":
+                raise FileNotFoundError("simulated Windows bare-command failure")
+            captured_commands.append(tuple(command))
+            if "shutil.which" in command[-1]:
+                return str(authenticated_lean)
+            return os.pathsep.join((str(project_path), str(package_path)))
+
+        isolated_env = {"PATH": str(authenticated_lake.parent)}
+        gate.capture = reject_bare_lake
+        try:
+            try:
+                resolved_authenticated_lake_environment(
+                    root, isolated_env, authenticated_lake
+                )
+            except CanaryFailure as error:
+                assert "unavailable LEAN_PATH entry" in str(error)
+            else:
+                raise AssertionError("missing pre-cache LEAN_PATH entry was accepted")
+            package_path.mkdir()
+            captured_commands.clear()
+            resolved_lean, resolved_entries = resolved_authenticated_lake_environment(
+                root, isolated_env, authenticated_lake
+            )
+        finally:
+            gate.capture = real_capture
+        assert resolved_lean == authenticated_lean
+        assert resolved_entries == (
+            project_path.resolve(strict=True),
+            package_path.resolve(strict=True),
+        )
+        assert len(captured_commands) == 2
+        assert all(
+            command[0] == str(authenticated_lake) for command in captured_commands
+        )
+        try:
+            resolved_authenticated_lake_environment(
+                root, isolated_env, root / "missing" / "lake.exe"
+            )
+        except CanaryFailure as error:
+            assert "Lake executable is unavailable" in str(error)
+        else:
+            raise AssertionError("missing authenticated Lake executable was accepted")
         mutated = runtime_root / "lean-4.30.0-rc2-windows/bin/lean.exe"
         mutated.write_bytes(b"hostile lean")
         try:
@@ -1138,11 +1291,11 @@ def main() -> int:
 
     lean4 = upstream / "lean4"
     dependencies_before = gate.prepare_dependencies(lean4, receipt_dir, logs)
-    resolved_lean, lake_entries = gate.resolved_lean_environment(lean4, base_env)
-    if resolved_lean != lean_executable:
-        raise CanaryFailure(
-            f"Lake resolved {resolved_lean}, expected authenticated runtime {lean_executable}"
-        )
+    print(
+        f"CANARY_PHASE authenticated-mathlib-cache-bootstrap "
+        f"lake={lake_executable}",
+        flush=True,
+    )
     cache_log = gate.run_logged(
         "01-mathlib-cache",
         (str(lake_executable), "exe", "cache", "get"),
@@ -1152,8 +1305,39 @@ def main() -> int:
         base_env,
     )
     logs[cache_log.name] = sha256_file(cache_log)
-    if gate.dependency_snapshot(lean4) != dependencies_before:
+    print(
+        "CANARY_PHASE verify-post-cache-dependency-snapshot",
+        flush=True,
+    )
+    try:
+        dependencies_after_cache = gate.dependency_snapshot(lean4)
+    except (gate.GateFailure, OSError, subprocess.SubprocessError) as error:
+        raise CanaryFailure(
+            f"verify-post-cache-dependency-snapshot: {error}"
+        ) from error
+    if dependencies_after_cache != dependencies_before:
         raise CanaryFailure("Lake dependencies changed during cache bootstrap")
+    print(
+        "CANARY_PHASE authenticated-mathlib-cache-bootstrap-complete",
+        flush=True,
+    )
+    print(
+        f"CANARY_PHASE resolve-authenticated-lake-environment "
+        f"lake={lake_executable}",
+        flush=True,
+    )
+    resolved_lean, lake_entries = resolved_authenticated_lake_environment(
+        lean4, base_env, lake_executable
+    )
+    print(
+        f"CANARY_PHASE resolved-authenticated-lake-environment "
+        f"lean_path_entries={len(lake_entries)}",
+        flush=True,
+    )
+    if resolved_lean != lean_executable:
+        raise CanaryFailure(
+            f"Lake resolved {resolved_lean}, expected authenticated runtime {lean_executable}"
+        )
 
     project_olean_root = (lean4 / ".lake" / "build" / "lib" / "lean").resolve(strict=True)
     gate.require_namespace_provenance(
