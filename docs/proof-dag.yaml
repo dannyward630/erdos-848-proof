@@ -1,4 +1,4 @@
-version: 8
+version: 9
 target:
   id: P848
   statement_ref: docs/problem-spec.md
@@ -135,11 +135,13 @@ nodes:
     kind: root_computational_certificate
     statement: The canonical root manifest and primary checker replay every computational node and negative control in one fresh uninterrupted authenticated six-stage run.
     dependencies: [IP_FIN, IP_LOWER, IP_LOW, IP_MIDDLE, H0, C0]
-    source: [certificates/all-n-manifest-v1.json, scripts/check_certificate.py, docs/computation-spec.md]
-    status: unverified
+    source: [certificates/all-n-manifest-v1.json, certificates/all-n-computational-receipt-2026-08-11.json, certificates/all-n-root-replay-public-index-2026-08-11.json, certificates/all-n-root-replay-2026-08-11.md, scripts/check_certificate.py, docs/computation-spec.md]
+    status: proved
     formalized: false
-    explicit_constants: {stages: 6}
-    key_original_step: Capture one fresh complete root-orchestrator receipt; resumed checkpoints are operational recovery only and cannot discharge this node.
+    explicit_constants:
+      stages: 6
+      final_receipt_sha256: 222c5313ed2f287fc5d2d3ee3e2d96938571838635518f19ee1f433bf0a71009
+    key_original_step: One fresh non-resumed six-stage execution reached the theorem-grade PASS, and a separate referee reconstructed every receipt and dependency hash.
   - id: M0
     kind: mathematical_all_n_theorem
     statement: The source-faithful upper bound holds for every positive N.

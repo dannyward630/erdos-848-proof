@@ -24,17 +24,17 @@ not a uniqueness claim.
   certificates, and an audited high-range theorem.
 - **Computational evidence:** every decisive finite stream has an independent
   exact checker, authenticated inputs, complete interval semantics, and
-  negative controls. Existing component replays are recorded in
-  [`certificates/`](certificates/).
+  negative controls. One fresh, uninterrupted run of the six-stage root
+  orchestrator has also passed and received an independent receipt audit.
+  The canonical evidence is recorded in [`certificates/`](certificates/).
 - **Formal evidence:** the pinned ART-006 Lean development has a literal,
   diagonal-inclusive endpoint and a coherent noncircular source/interface
   audit. Its own publication state reports a closed theorem with only
   `propext`, `Classical.choice`, and `Quot.sound`.
 - **Remaining project-level gate:** this repository has not independently run
-  ART-006's complete 30,636-module provider build and trust-zero replay on the
-  required Windows host. The root six-stage computational orchestrator also
-  awaits one fresh end-to-end receipt. These are reproducibility/formal-
-  assurance tasks, not uncovered values of $N$.
+  ART-006's complete 30,636-module provider build and trust-zero replay from
+  source on the required Windows capacity. The remaining work is formal and
+  clean-reproduction assurance, not an uncovered value of $N$.
 
 The precise status of every dependency is recorded in
 [`docs/proof-ledger.md`](docs/proof-ledger.md) and
@@ -49,6 +49,7 @@ partial replay is presented as a completed theorem gate.
 - [Structural-certificate appendix and verification challenge](proof/structural-certificate-appendix.md)
 - [Exact problem and statement audit](docs/problem-spec.md)
 - [Internal adversarial review record](docs/final-referee.md)
+- [Fresh six-stage root replay and independent receipt audit](certificates/all-n-root-replay-2026-08-11.md)
 - [Complete reproduction guide](REPRODUCE.md)
 
 ## Proof map
@@ -159,9 +160,10 @@ The research, code, proof drafting, and adversarial review were carried out in
 a multi-agent OpenAI Codex workflow under Danny Ward's direction. “Independent”
 in this repository means that separately assigned implementations or review
 lanes did not certify their own work; it does **not** mean external scholarly
-peer review. This first public release is unrefereed, and the public Erdős
-Problems tracker had not incorporated it as a resolution on 11 August 2026.
-See [`PROVENANCE.md`](PROVENANCE.md) for the authorship and evidence boundary.
+peer review. This public proof package remains unrefereed, and the public
+Erdős Problems tracker had not incorporated it as a resolution when rechecked
+on 13 August 2026. See [`PROVENANCE.md`](PROVENANCE.md) for the authorship and
+evidence boundary.
 
 No third-party source repository or PDF is silently vendored here. The
 ignored `external/` and `sources/cache/` trees are reconstructed from immutable

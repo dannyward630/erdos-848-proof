@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "status": "all-n-computational-certificate-passed",
+  "execution_provenance": "local-unattested",
+  "manifest_sha256": "d359378687e065e2dda9882e2af4af5f4d21e216fac11783871c93d7faee746a",
+  "orchestrator_sha256": "ba26ce6c93bd20514dd606666e1484f3c590627edd85c5f71851cc8d7d17c70d",
+  "tools": {
+    "python": "3.9.6",
+    "python_implementation": "CPython",
+    "python_executable": "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9",
+    "gmpy2": "2.2.1",
+    "gmp": "GMP 6.3.0",
+    "cxx": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+    "javac": "javac 25.0.3",
+    "java": "openjdk version \"25.0.3\" 2026-04-21 LTS",
+    "platform": "macOS-26.6.1-arm64-arm-64bit",
+    "orchestrator_sha256": "ba26ce6c93bd20514dd606666e1484f3c590627edd85c5f71851cc8d7d17c70d",
+    "child_python_dont_write_bytecode": "1",
+    "root_head": "cd4c72842bd05ba8043144d057cac73ec2d705d7",
+    "root_tree": "a173e84a7619e7f280fb47125f96b1d4a2a53dbb"
+  },
+  "art005_revision": "1afd7c722cae5ee7dd0fd1fde64427537394f749",
+  "art005_tree": "6dedab80313f06e232b0ca47c29ebaf39ce35b17",
+  "root_repository": {
+    "head": "cd4c72842bd05ba8043144d057cac73ec2d705d7",
+    "tree": "a173e84a7619e7f280fb47125f96b1d4a2a53dbb"
+  },
+  "stage_receipts": [
+    "636ef3c869ecae0ee53b9932a6dcbf9ac39484088aeb3087c4fbca194512de1e",
+    "18df920a697c643836733a1b929eaf7371929a1e80396b61841a7708ad657bcf",
+    "57b67a2b186ac58d9765f64b14d194b7be81a60660ff0fce2a45840c51821099",
+    "a5959d59f86ca924e1eee76c11d79ccc4f39b0e5617e6bebe861b60dce8a7e40",
+    "70d1720cfbc68aac98cb37b2564e79e1bfc9410f7358de72fbf97515b6c2f114",
+    "124c6b7acd7eba6cae95704d204e9deb0135e8d8a81e972ced492f7c23651162"
+  ],
+  "coverage_sha256": "b28760bca88b3f4a356f5212f5aa3711df00ee527606058a9aefc193e715ebe1"
+}

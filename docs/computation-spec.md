@@ -277,10 +277,17 @@ digest drift, interval gaps, and missing stages.
 outputs, dependencies, manifests, interrupted-stage state, nested links,
 unexpected work-tree entries, output redirection, and surviving child processes.
 
-The new root orchestrator has passed source authentication, schema controls,
-and checkpoint controls. Its complete fresh six-stage end-to-end replay is
-still pending; the already recorded component receipts remain the current
-decisive execution evidence until that exact root replay is captured.
+The root orchestrator has passed source authentication, schema controls, and
+checkpoint controls. One complete fresh six-stage end-to-end replay at public
+commit `cd4c728...d705d7` ran without `--resume`, ended with the theorem-grade
+PASS after 8,487.79 seconds, and emitted canonical receipt SHA-256
+`222c5313...a71009`. A separately assigned referee reconstructed every stage
+fingerprint, log/output hash, dependency receipt, repository identity, and
+coverage result. The canonical receipt and referee report are
+`certificates/all-n-computational-receipt-2026-08-11.json` and
+`certificates/all-n-root-replay-2026-08-11.md`. The receipt remains correctly
+labelled `local-unattested`; it discharges the specified computational root
+node `CD0`, not a human structural argument or any Lean node.
 
 ## Connection to an all-\(N\) proof
 
