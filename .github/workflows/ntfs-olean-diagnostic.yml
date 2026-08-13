@@ -1,9 +1,7 @@
 name: NTFS OLean host diagnostic
 
 on:
-  push:
-    branches:
-      - lean-host-diagnostic
+  workflow_dispatch:
 
 permissions:
   contents: read

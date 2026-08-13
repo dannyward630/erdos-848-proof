@@ -2,6 +2,8 @@ name: Quick audit
 
 on:
   push:
+    branches:
+      - main
   pull_request:
 
 permissions:
@@ -62,6 +64,7 @@ jobs:
           python -B computations/test_all_n_resume.py
           python -B diagnostics/test_lean_checkpoint_plan.py
           python -B lean/test_completion_gate.py
+          python -B lean/test_completion_workflow.py
           python -B diagnostics/run_cached_lean_canary.py --self-test
 
       - name: Verify canonical prefix certificate
