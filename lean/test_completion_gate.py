@@ -106,6 +106,111 @@ def main() -> int:
         raise RuntimeError("caller-controlled Lean path survived sanitization")
     print("REMOVED inherited Lean module paths")
 
+    with tempfile.TemporaryDirectory(prefix="erdos848-runtime-path-controls-") as raw:
+        base = Path(raw)
+        runtime_bin = base / "authenticated" / "bin"
+        missing_lake_bin = base / "missing-lake" / "bin"
+        shadow_bin = base / "shadow" / "bin"
+        for directory in (runtime_bin, missing_lake_bin, shadow_bin):
+            directory.mkdir(parents=True)
+        lean = runtime_bin / "lean.exe"
+        lake = runtime_bin / "lake.exe"
+        missing_lake_lean = missing_lake_bin / "lean.exe"
+        shadow_lake = shadow_bin / "lake.exe"
+        for path in (lean, lake, missing_lake_lean, shadow_lake):
+            path.write_bytes(b"bounded executable fixture\n")
+            path.chmod(0o755)
+
+        original_platform = runner.sys.platform
+        original_which = runner.shutil.which
+
+        def fixture_which(name: str, path: str | None = None) -> str | None:
+            if path is None:
+                return None
+            for directory in path.split(os.pathsep):
+                candidate = Path(directory) / name
+                if candidate.is_file():
+                    return str(candidate)
+            return None
+
+        runner.sys.platform = "win32"
+        runner.shutil.which = fixture_which
+        try:
+            resolved_lean, resolved_lake = runner.resolved_runtime_executables(
+                {"PATH": str(runtime_bin)}
+            )
+            if (resolved_lean, resolved_lake) != (
+                lean.resolve(strict=True), lake.resolve(strict=True)
+            ):
+                raise RuntimeError("authenticated runtime pair resolved incorrectly")
+            print("ACCEPTED same-directory absolute Lean/Lake runtime")
+            expect_rejected(
+                runner,
+                lambda: runner.resolved_runtime_executables(
+                    {"PATH": str(missing_lake_bin)}
+                ),
+                "missing Lake executable",
+            )
+            expect_rejected(
+                runner,
+                lambda: runner.resolved_runtime_executables(
+                    {
+                        "PATH": os.pathsep.join(
+                            (str(shadow_bin), str(runtime_bin))
+                        )
+                    }
+                ),
+                "PATH-shadowed Lake executable",
+            )
+
+            project_path = base / "project-olean"
+            future_path = base / "post-cache-olean"
+            project_path.mkdir()
+            captured_commands: list[tuple[str, ...]] = []
+            original_capture = runner.capture
+
+            def fake_lake_capture(
+                command: tuple[str, ...], cwd: Path, timeout: int = 60,
+                env: dict[str, str] | None = None,
+            ) -> str:
+                del cwd, timeout, env
+                captured_commands.append(tuple(command))
+                if "shutil.which" in command[-1]:
+                    return str(lean)
+                return os.pathsep.join((str(project_path), str(future_path)))
+
+            runner.capture = fake_lake_capture
+            try:
+                expect_rejected(
+                    runner,
+                    lambda: runner.resolved_lean_environment(
+                        base, {"PATH": str(runtime_bin)}, lake
+                    ),
+                    "missing pre-cache LEAN_PATH entry",
+                )
+                future_path.mkdir()
+                captured_commands.clear()
+                resolved_lean, resolved_entries = runner.resolved_lean_environment(
+                    base, {"PATH": str(runtime_bin)}, lake
+                )
+            finally:
+                runner.capture = original_capture
+        finally:
+            runner.sys.platform = original_platform
+            runner.shutil.which = original_which
+        if resolved_lean != lean.resolve(strict=True):
+            raise RuntimeError("Lake environment resolved the wrong Lean executable")
+        if resolved_entries != (
+            project_path.resolve(strict=True), future_path.resolve(strict=True)
+        ):
+            raise RuntimeError("Lake environment resolved the wrong module path")
+        if len(captured_commands) != 2 or any(
+            command[0] != str(lake.resolve(strict=True))
+            for command in captured_commands
+        ):
+            raise RuntimeError("Lake environment query did not use absolute Lake")
+        print("ACCEPTED absolute post-cache Lake environment resolution")
+
     with tempfile.TemporaryDirectory(prefix="erdos848-lean-path-controls-") as raw:
         base = Path(raw)
         project = base / "project"

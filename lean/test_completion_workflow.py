@@ -97,6 +97,32 @@ def main() -> int:
         ),
         "extra receipt key",
     )
+    toolchain = {
+        "lean": validator.gate.TOOLCHAIN,
+        "observed_lean_version": (
+            "Lean (version 4.30.0-rc2, x86_64-w64-windows-gnu, "
+            f"commit {validator.gate.LEAN_COMMIT}, Release)"
+        ),
+        "resolved_lean_executable": r"D:\runtime\bin\lean.exe",
+        "resolved_lake_executable": r"D:\runtime\bin\lake.exe",
+        "lean_commit": validator.gate.LEAN_COMMIT,
+        "mathlib_revision": validator.gate.MATHLIB,
+        "psutil": "7.2.2",
+    }
+    validator.validate_toolchain(toolchain)
+    print("ACCEPTED paired absolute Lean/Lake receipt paths")
+    malformed_toolchain = copy.deepcopy(toolchain)
+    del malformed_toolchain["resolved_lake_executable"]
+    reject(
+        lambda: validator.validate_toolchain(malformed_toolchain),
+        "missing resolved Lake receipt path",
+    )
+    malformed_toolchain = copy.deepcopy(toolchain)
+    malformed_toolchain["resolved_lake_executable"] = r"D:\shadow\bin\lake.exe"
+    reject(
+        lambda: validator.validate_toolchain(malformed_toolchain),
+        "PATH-shadowed Lake receipt path",
+    )
     print("ALL WORKFLOW RECEIPT MUTATION CONTROLS PASSED")
     return 0
 

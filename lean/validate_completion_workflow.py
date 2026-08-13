@@ -48,8 +48,8 @@ HOST_KEYS = (
     "available_memory_bytes", "free_storage_bytes",
 )
 TOOLCHAIN_KEYS = (
-    "lean", "observed_lean_version", "resolved_lean_executable", "lean_commit",
-    "mathlib_revision", "psutil",
+    "lean", "observed_lean_version", "resolved_lean_executable",
+    "resolved_lake_executable", "lean_commit", "mathlib_revision", "psutil",
 )
 DEPENDENCY_KEYS = ("revision", "tree", "url")
 DEPENDENCIES = (
@@ -276,6 +276,17 @@ def validate_toolchain(value: Any) -> None:
     pure = PureWindowsPath(executable)
     if not pure.is_absolute() or pure.name.lower() != "lean.exe" or pure.parent.name.lower() != "bin":
         fail("resolved Lean executable is not an absolute Windows bin/lean.exe")
+    lake_executable = toolchain["resolved_lake_executable"]
+    if type(lake_executable) is not str:
+        fail("resolved Lake executable is not a string")
+    lake = PureWindowsPath(lake_executable)
+    if (
+        not lake.is_absolute()
+        or lake.name.lower() != "lake.exe"
+        or lake.parent.name.lower() != "bin"
+        or lake.parent != pure.parent
+    ):
+        fail("resolved Lake executable is not the paired Windows bin/lake.exe")
     exact_string(toolchain["lean_commit"], gate.LEAN_COMMIT, "Lean commit")
     exact_string(toolchain["mathlib_revision"], gate.MATHLIB, "mathlib revision")
     exact_string(toolchain["psutil"], "7.2.2", "psutil version")

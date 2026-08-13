@@ -33,8 +33,8 @@
   "root_sources": {
     "final_sha256": "74e36a06786ecda5b2bd5e3892b2513db7f19bb08084cc151319a67954f7edd6",
     "axiom_audit_sha256": "fdbad8d9dc8f084b8fa3acb86a3ef395d792f5622c5b5dfe070bdab4398d42c6",
-    "test_sha256": "4cec461a3a4688c6bbc3e40ae302ae147857a7c3adb6656e23fca0ee72d8af26",
-    "runner_sha256": "a68e4b1e0363be69a6c9fe23e81badd2b129c8e06cbca2825c8d4a6205b35eb6"
+    "test_sha256": "3aeb58eabe77c9a907e2c456df8c6761bfc49f7c41fa90567d0b9635ad291807",
+    "runner_sha256": "2ad16a7874911cc51e8688e0aa038e98b91ef7739449ca666a67bee91613488a"
   },
   "allowed_axioms": [
     "propext",
