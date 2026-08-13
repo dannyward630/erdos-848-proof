@@ -326,6 +326,28 @@ LEAN COMPLETION GATE PASSED
 The emitted receipt is still subject to independent review before it may be
 copied into `lean/receipts/` or used to promote `L1`, `L2`, or `V0`.
 
+The tracked manual workflow wraps that exact gate for a uniquely labelled,
+isolated self-hosted runner. The workflow file must first exist on the default
+branch because GitHub dispatches `workflow_dispatch` only for workflows on the
+default branch. Register exactly one Windows/X64 runner with the custom label
+`erdos848-art006`, pre-create `D:\erdos848-verification` on the large-volume
+disk, and dispatch:
+
+```sh
+gh workflow run art006-full-source-completion.yml \
+  -f confirm_full_gate=true \
+  -f 'persistent_root=D:\erdos848-verification'
+gh run list --workflow art006-full-source-completion.yml --limit 1
+```
+
+The build job writes outside the checkout to a run-id-bound persistent
+directory. A dependent job on the same uniquely labelled host receives a fresh
+job token, verifies the receipt/log hash chain and all 19 axiom endpoints, and
+uploads the result. This split is intentional because a self-hosted job may run
+longer than the documented 24-hour `GITHUB_TOKEN` lifetime. See
+`diagnostics/FULL_SOURCE_COMPLETION_ROUTE.md` for the exact host assumptions,
+pilot audit, and promotion boundary.
+
 The documented clean source route, run from the candidate root, is:
 
 ```sh
@@ -352,7 +374,7 @@ python3 -B scripts/run_kernel_gates.py --memory-mib 32768
 This route has **not** completed on the current 16 GiB host. It is recorded as
 a required future command, not as a passing result. The published gate needs
 32,768 MiB plus a 1,024 MiB guard reserve, so a nominal 32 GiB machine is too
-small. Use a persistent Windows x86-64 host with 64 GiB RAM and at least 170
+small. Use a persistent Windows x86-64 host with 64 GiB RAM and at least 200
 GiB genuinely free storage, preferably a 300 GiB-or-larger SSD and a short
 checkout path. Install and record `psutil==7.2.2`; the release imports it but
 does not pin it. The exact cone, disk calculation, portability defects, and
@@ -393,6 +415,14 @@ evidence.
 This marker is intentionally not `LEAN COMPLETION GATE PASSED`. The pilot does
 not cover the publication closure, root theorem, live axiom reports, or final
 dependency audit, and cannot promote any pending Lean or completion node.
+
+Pilot run `31541505450` completed both segments. Its canonical plan digest is
+`6459fb1d...211c`; segment receipts are `a77dda29...4640` and
+`a976945c...e84`. Replaying the downloaded plan and receipts against the exact
+source pin passed. The pilot verifier deliberately accepts only genesis
+parents and its artifacts carry only their own segment OLeans, so it must not
+be extended naively beyond dependency depth one. The complete route is the
+single-host zero-OLean gate above, not a longer direct-parent artifact chain.
 
 Optional noninstalling APFS capacity diagnostic, which transiently uses about
 2.6 GiB and downloads one 448 MiB shard:
