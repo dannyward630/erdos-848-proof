@@ -35,14 +35,17 @@ primorial-gcd certification proves all 11,108,162 accepted terminal leaves
 prime. The endpoint-401 corruption is rejected for the intended nonsquarefree
 pair and is recorded as the counterexample to sampled checking in FL-011.
 
-The previously missing root certificate deliverable now exists as
-`certificates/all-n-manifest-v1.json` and `scripts/check_certificate.py`.
-Strict manifest and checkpoint mutation controls pass, including nested-link
-and interruption controls. Resumption is operational only because an unsigned
-caller-writable checkpoint cannot attest execution provenance; a resumed chain
-never prints the theorem-grade PASS. The complete fresh uninterrupted
-six-stage root replay has not yet been captured, so `CD0` remains unverified
-even though each underlying component has a separately checked receipt.
+The root certificate deliverable is `certificates/all-n-manifest-v1.json` and
+`scripts/check_certificate.py`. Strict manifest and checkpoint mutation
+controls pass, including nested-link and interruption controls. One complete
+fresh uninterrupted six-stage replay at public commit `cd4c728...d705d7`
+ended with the theorem-grade PASS after 8,487.79 seconds. Its canonical final
+receipt is `certificates/all-n-computational-receipt-2026-08-11.json`, SHA-256
+`222c5313...a71009`. A separate referee reconstructed every stage fingerprint,
+dependency receipt, log/output hash, repository identity, negative control,
+and coverage result. `CD0` is proved. The receipt remains correctly labelled
+`local-unattested`; operationally resumed runs still cannot produce a
+theorem-grade receipt.
 
 The structural and high-range proof is pinned to ART-005 revision
 `1afd7c722cae5ee7dd0fd1fde64427537394f749`. Its 19-stage fresh-extraction
@@ -89,19 +92,18 @@ This 16 GiB macOS host cannot safely run those stages:
   the documented final ceiling is 32,768 MiB; and
 - the unmodified direct-Lean kernel runner is Windows-only.
 
-The tracked `lean/` entrypoint now supplies a literal positive-`N` theorem,
+The tracked `lean/` entrypoint supplies a literal positive-`N` theorem,
 both sharp residue witnesses, a 19-endpoint axiom audit, an immutable source
 lock, and a guarded Windows completion runner. Its source-lock/census audit
 passes locally, but it is deliberately unverified until compiled. Therefore
-`CD0`, `LROOT`, `L1`, `L2`, `RCLEAN`, `V0`, and the protocol target `P848`
-remain open. These are assurance/execution blockers, not a counterexample or a
+`LROOT`, `L1`, `L2`, `RCLEAN`, `V0`, and the protocol target `P848` remain
+open. These are formal-assurance/execution blockers, not a counterexample or a
 gap in `M0`.
 
 ## Exact next actions
 
-1. Run `scripts/check_certificate.py` through all six stages from a fresh
-   external work directory without `--resume` and retain the canonical receipt;
-   resumed completion is operational only and cannot promote `CD0`.
+1. Preserve the independently audited CD0 receipt and use the documented fresh
+   command for any additional reproduction; never substitute a resumed chain.
 2. Use a persistent Windows x86-64 host with 64 GiB RAM and at least 200 GiB
    free disk (300 GiB preferred) and run `lean/run_completion_gate.py` exactly
    as documented, without `lake update`.
@@ -124,6 +126,7 @@ preflight-only mode as a completion receipt.
 - Sothanaphan PDF: `8162113a571dc2283fc77de1cdf36e7abf424eeec952aa27cf82a4f44b3a796f`.
 - Hanson PDF: `ba350b2ce48e0ddb0751d8a60bcfe310683bc88df4fcf1b6a91029297688689c`.
 - Finite canonical receipt: `4fc75b0ed263df81c07c5997c915511351ea61fff085d3ac95159c524ca9aad6`.
+- Fresh root computational receipt: `222c5313ed2f287fc5d2d3ee3e2d96938571838635518f19ee1f433bf0a71009`.
 - ART-005 range ledger: `b28760bca88b3f4a356f5212f5aa3711df00ee527606058a9aefc193e715ebe1`.
 - All external repository pins and clean-checkout commands are in
   `docs/source-audit.md` and `REPRODUCE.md`.
