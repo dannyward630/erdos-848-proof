@@ -16,8 +16,11 @@ generated source are not duplicated here.
 live axiom parser, inherited `LEAN_PATH`, wrong-root/cache-shadowed project
 OLeans, exact direct-import paths, and timed-out subprocess trees. The full
 runner clears caller Lean paths, inventories the exact 30,636 provider OLeans,
-uses a directly resolved pinned Lean executable, and accepts `Erdos848` and
-`Erdos848Completion` modules only from their authenticated build roots.
+requires the explicit bin directory of a fresh hash-authenticated Windows
+runtime extraction, verifies the exact Lean and Lake executable hashes, uses
+that absolute Lake for cache and environment operations, and accepts
+`Erdos848` and `Erdos848Completion` modules only from their authenticated
+build roots.
 
 ## Status
 

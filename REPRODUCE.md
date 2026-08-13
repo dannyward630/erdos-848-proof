@@ -301,18 +301,83 @@ with at least 64 GiB RAM and 200 GiB genuinely free disk, install the pinned
 runtime and run from this repository root in PowerShell:
 
 ```powershell
-python -m pip install --disable-pip-version-check "psutil==7.2.2"
-elan toolchain install leanprover/lean4:v4.30.0-rc2
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
+
+python -m pip install --disable-pip-version-check `
+  --only-binary=:all: --require-hashes `
+  --requirement lean/requirements-completion.txt
+if ($LASTEXITCODE -ne 0) {
+  throw "pinned psutil installation failed with exit code $LASTEXITCODE"
+}
+
+$runtimeBase = Join-Path $env:TEMP (
+  "erdos848-lean-runtime-manual-" + [guid]::NewGuid().ToString("N")
+)
+if (Test-Path -LiteralPath $runtimeBase) {
+  throw "fresh runtime directory unexpectedly exists: $runtimeBase"
+}
+[void](New-Item -ItemType Directory -Path $runtimeBase)
+$runtimeZip = Join-Path $runtimeBase "lean-4.30.0-rc2-windows.zip"
+$runtimeRoot = Join-Path $runtimeBase "extracted"
+
+& curl.exe --proto "=https" --tlsv1.2 --location --fail --silent `
+  --show-error --retry 5 --retry-all-errors --output $runtimeZip `
+  "https://github.com/leanprover/lean4/releases/download/v4.30.0-rc2/lean-4.30.0-rc2-windows.zip"
+if ($LASTEXITCODE -ne 0) {
+  throw "Lean runtime download failed with exit code $LASTEXITCODE"
+}
+$runtimeSha = (
+  Get-FileHash -LiteralPath $runtimeZip -Algorithm SHA256
+).Hash.ToLowerInvariant()
+if ($runtimeSha -cne "cb0688631203ac7832e447a5791e51e88db938b6038ff788eea73491619988b2") {
+  throw "Lean runtime SHA-256 mismatch: $runtimeSha"
+}
+[void](New-Item -ItemType Directory -Path $runtimeRoot)
+& tar.exe -xf $runtimeZip -C $runtimeRoot
+if ($LASTEXITCODE -ne 0) {
+  throw "Lean runtime extraction failed with exit code $LASTEXITCODE"
+}
+$lean = @(Get-ChildItem -LiteralPath $runtimeRoot -Recurse -File `
+  -Filter lean.exe | Where-Object { $_.Directory.Name -ceq "bin" })
+$lake = @(Get-ChildItem -LiteralPath $runtimeRoot -Recurse -File `
+  -Filter lake.exe | Where-Object { $_.Directory.Name -ceq "bin" })
+if ($lean.Count -ne 1 -or $lake.Count -ne 1) {
+  throw "authenticated runtime must contain exactly one lean.exe and lake.exe"
+}
+if ($lean[0].Directory.FullName -cne $lake[0].Directory.FullName) {
+  throw "authenticated Lean and Lake are not in the same bin directory"
+}
+$leanSha = (
+  Get-FileHash -LiteralPath $lean[0].FullName -Algorithm SHA256
+).Hash.ToLowerInvariant()
+if ($leanSha -cne "5bead9b39d9a23306507fb59277995b94e71787d86d76a9ed3fb248b1ed3f995") {
+  throw "Lean executable SHA-256 mismatch: $leanSha"
+}
+$lakeSha = (
+  Get-FileHash -LiteralPath $lake[0].FullName -Algorithm SHA256
+).Hash.ToLowerInvariant()
+if ($lakeSha -cne "9befc94126195bc2057109e2cfc1207962739ba1b5fc03b8b955be4e27210eed") {
+  throw "Lake executable SHA-256 mismatch: $lakeSha"
+}
+$runtimeBin = $lean[0].Directory.FullName
+$env:PATH = $runtimeBin + [IO.Path]::PathSeparator + $env:PATH
+& $lean[0].FullName --version
+if ($LASTEXITCODE -ne 0) {
+  throw "authenticated Lean version probe failed with exit code $LASTEXITCODE"
+}
 
 $receipt = "D:\erdos848-receipts\clean-$([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))"
 python -B lean/run_completion_gate.py `
   --upstream-root external/erdos-848-squarefree-product `
+  --runtime-bin $runtimeBin `
   --receipt-dir $receipt `
   --memory-mib 32768
 ```
 
 The runner refuses a non-Windows host, a dirty or mispinned source tree,
-pre-existing project OLeans, insufficient resources, a moving dependency, a
+project OLeans present either before or after cache bootstrap, insufficient resources, a moving dependency, a
 forbidden axiom, a missing endpoint report, source drift, or a nonempty receipt
 directory. It never runs `lake update`. It compiles the literal theorem in
 `lean/Erdos848Completion/Final.lean`, runs trust zero over the complete import

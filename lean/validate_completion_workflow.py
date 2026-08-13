@@ -48,8 +48,10 @@ HOST_KEYS = (
     "available_memory_bytes", "free_storage_bytes",
 )
 TOOLCHAIN_KEYS = (
-    "lean", "observed_lean_version", "resolved_lean_executable",
-    "resolved_lake_executable", "lean_commit", "mathlib_revision", "psutil",
+    "lean", "observed_lean_version", "runtime_archive_sha256", "runtime_bin",
+    "resolved_lean_executable", "lean_executable_sha256",
+    "resolved_lake_executable", "lake_executable_sha256", "lean_commit",
+    "mathlib_revision", "psutil",
 )
 DEPENDENCY_KEYS = ("revision", "tree", "url")
 DEPENDENCIES = (
@@ -270,12 +272,32 @@ def validate_toolchain(value: Any) -> None:
         or f"commit {gate.LEAN_COMMIT}," not in observed
     ):
         fail("observed Lean version mismatch")
+    exact_string(
+        toolchain["runtime_archive_sha256"],
+        gate.RUNTIME_ARCHIVE_SHA256,
+        "Lean runtime archive digest",
+    )
+    runtime_bin_value = toolchain["runtime_bin"]
+    if type(runtime_bin_value) is not str:
+        fail("runtime bin is not a string")
+    runtime_bin = PureWindowsPath(runtime_bin_value)
+    if not runtime_bin.is_absolute() or runtime_bin.name.lower() != "bin":
+        fail("runtime bin is not an absolute Windows bin directory")
     executable = toolchain["resolved_lean_executable"]
     if type(executable) is not str:
         fail("resolved Lean executable is not a string")
     pure = PureWindowsPath(executable)
-    if not pure.is_absolute() or pure.name.lower() != "lean.exe" or pure.parent.name.lower() != "bin":
+    if (
+        not pure.is_absolute()
+        or pure.name.lower() != "lean.exe"
+        or pure.parent != runtime_bin
+    ):
         fail("resolved Lean executable is not an absolute Windows bin/lean.exe")
+    exact_string(
+        toolchain["lean_executable_sha256"],
+        gate.LEAN_EXECUTABLE_SHA256,
+        "Lean executable digest",
+    )
     lake_executable = toolchain["resolved_lake_executable"]
     if type(lake_executable) is not str:
         fail("resolved Lake executable is not a string")
@@ -283,10 +305,15 @@ def validate_toolchain(value: Any) -> None:
     if (
         not lake.is_absolute()
         or lake.name.lower() != "lake.exe"
-        or lake.parent.name.lower() != "bin"
+        or lake.parent != runtime_bin
         or lake.parent != pure.parent
     ):
         fail("resolved Lake executable is not the paired Windows bin/lake.exe")
+    exact_string(
+        toolchain["lake_executable_sha256"],
+        gate.LAKE_EXECUTABLE_SHA256,
+        "Lake executable digest",
+    )
     exact_string(toolchain["lean_commit"], gate.LEAN_COMMIT, "Lean commit")
     exact_string(toolchain["mathlib_revision"], gate.MATHLIB, "mathlib revision")
     exact_string(toolchain["psutil"], "7.2.2", "psutil version")

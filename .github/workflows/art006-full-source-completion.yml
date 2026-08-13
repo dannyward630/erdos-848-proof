@@ -94,8 +94,19 @@ jobs:
           if ($lean[0].Directory.FullName -cne $lake[0].Directory.FullName) {
             throw 'Lean and Lake resolved from different runtime directories'
           }
-          $lean[0].Directory.FullName |
+          $leanSha = (Get-FileHash -LiteralPath $lean[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($leanSha -cne '5bead9b39d9a23306507fb59277995b94e71787d86d76a9ed3fb248b1ed3f995') {
+            throw "Lean executable SHA-256 mismatch: $leanSha"
+          }
+          $lakeSha = (Get-FileHash -LiteralPath $lake[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($lakeSha -cne '9befc94126195bc2057109e2cfc1207962739ba1b5fc03b8b955be4e27210eed') {
+            throw "Lake executable SHA-256 mismatch: $lakeSha"
+          }
+          $runtimeBin = $lean[0].Directory.FullName
+          $runtimeBin |
             Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "E848_RUNTIME_BIN=$runtimeBin" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           & $lean[0].FullName --version
           if ($LASTEXITCODE -ne 0) {
             throw "Lean version probe failed with exit code $LASTEXITCODE"
@@ -190,6 +201,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           python -B proof/lean/run_completion_gate.py `
             --upstream-root source `
+            --runtime-bin $env:E848_RUNTIME_BIN `
             --receipt-dir $env:E848_RECEIPT_DIR `
             --memory-mib 32768
           if ($LASTEXITCODE -ne 0) {

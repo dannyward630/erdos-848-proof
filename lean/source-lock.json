@@ -10,6 +10,9 @@
   "toolchain": {
     "lean": "leanprover/lean4:v4.30.0-rc2",
     "lean_commit": "3dc1a088b6d2d8eafe25a7cd7ec7b58d731bd7cc",
+    "runtime_archive_sha256": "cb0688631203ac7832e447a5791e51e88db938b6038ff788eea73491619988b2",
+    "lean_executable_sha256": "5bead9b39d9a23306507fb59277995b94e71787d86d76a9ed3fb248b1ed3f995",
+    "lake_executable_sha256": "9befc94126195bc2057109e2cfc1207962739ba1b5fc03b8b955be4e27210eed",
     "lean_toolchain_sha256": "ce4c4e3d87434b9663f46de25ce34b48a0cf0d392e0a320a0787b4674a2d7b61",
     "lake_manifest_sha256": "e016cb20d7f2f3b2bef02393f4b468fdd4f8fdeba9784aabb39e2889a87b5d4c",
     "lakefile_sha256": "7479e2c461de9c48bcf32fc210ee2ce56d6d1a485c0a0d49d17f934082074912",
@@ -33,8 +36,8 @@
   "root_sources": {
     "final_sha256": "74e36a06786ecda5b2bd5e3892b2513db7f19bb08084cc151319a67954f7edd6",
     "axiom_audit_sha256": "fdbad8d9dc8f084b8fa3acb86a3ef395d792f5622c5b5dfe070bdab4398d42c6",
-    "test_sha256": "3aeb58eabe77c9a907e2c456df8c6761bfc49f7c41fa90567d0b9635ad291807",
-    "runner_sha256": "2ad16a7874911cc51e8688e0aa038e98b91ef7739449ca666a67bee91613488a"
+    "test_sha256": "83fcac5a4af05d81e8e32d5b24ac3552ee94cdbad16b78bc0971cb8a7d9bffe1",
+    "runner_sha256": "73ba3b5e998d2cbf213e3ac96a252a82d63d262ba4f28f6aa8fbfdf633c7fca1"
   },
   "allowed_axioms": [
     "propext",

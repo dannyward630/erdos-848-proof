@@ -103,8 +103,12 @@ def main() -> int:
             "Lean (version 4.30.0-rc2, x86_64-w64-windows-gnu, "
             f"commit {validator.gate.LEAN_COMMIT}, Release)"
         ),
+        "runtime_archive_sha256": validator.gate.RUNTIME_ARCHIVE_SHA256,
+        "runtime_bin": r"D:\runtime\bin",
         "resolved_lean_executable": r"D:\runtime\bin\lean.exe",
+        "lean_executable_sha256": validator.gate.LEAN_EXECUTABLE_SHA256,
         "resolved_lake_executable": r"D:\runtime\bin\lake.exe",
+        "lake_executable_sha256": validator.gate.LAKE_EXECUTABLE_SHA256,
         "lean_commit": validator.gate.LEAN_COMMIT,
         "mathlib_revision": validator.gate.MATHLIB,
         "psutil": "7.2.2",
@@ -122,6 +126,30 @@ def main() -> int:
     reject(
         lambda: validator.validate_toolchain(malformed_toolchain),
         "PATH-shadowed Lake receipt path",
+    )
+    malformed_toolchain = copy.deepcopy(toolchain)
+    malformed_toolchain["runtime_archive_sha256"] = "0" * 64
+    reject(
+        lambda: validator.validate_toolchain(malformed_toolchain),
+        "wrong runtime archive receipt digest",
+    )
+    malformed_toolchain = copy.deepcopy(toolchain)
+    del malformed_toolchain["runtime_bin"]
+    reject(
+        lambda: validator.validate_toolchain(malformed_toolchain),
+        "missing explicit runtime bin receipt path",
+    )
+    malformed_toolchain = copy.deepcopy(toolchain)
+    malformed_toolchain["runtime_bin"] = r"D:\other-runtime\bin"
+    reject(
+        lambda: validator.validate_toolchain(malformed_toolchain),
+        "mismatched explicit runtime bin receipt path",
+    )
+    malformed_toolchain = copy.deepcopy(toolchain)
+    malformed_toolchain["lean_executable_sha256"] = "0" * 64
+    reject(
+        lambda: validator.validate_toolchain(malformed_toolchain),
+        "wrong Lean executable receipt digest",
     )
     print("ALL WORKFLOW RECEIPT MUTATION CONTROLS PASSED")
     return 0

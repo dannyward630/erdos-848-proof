@@ -110,7 +110,10 @@ Dispatch `.github/workflows/art006-full-source-completion.yml` with
 The equivalent direct command on a prepared host is:
 
 ```powershell
-python -m pip install --disable-pip-version-check "psutil==7.2.2"
+python -m pip install --disable-pip-version-check --only-binary=:all: `
+  --require-hashes --requirement lean/requirements-completion.txt
+# Download, SHA-256-check, and freshly extract the exact Windows runtime as in
+# REPRODUCE.md, then set $runtimeBin to its canonical bin directory.
 
 $receipt = "D:\erdos848-verification\manual-$([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))"
 python -B lean/test_completion_gate.py
@@ -119,12 +122,14 @@ python -B lean/run_completion_gate.py `
   --source-audit-only
 python -B lean/run_completion_gate.py `
   --upstream-root external/erdos-848-squarefree-product `
+  --runtime-bin $runtimeBin `
   --receipt-dir $receipt `
   --memory-mib 32768
 ```
 
-The host must already expose the authenticated Lean `v4.30.0-rc2` runtime and
-must begin with no `Erdos848` project OLeans.  Do not run `lake update`.
+The host must expose the exact archive-authenticated Lean `v4.30.0-rc2`
+runtime through that explicit fresh extraction directory and must begin with
+no `Erdos848` project OLeans. Do not run `lake update`.
 
 ## Promotion boundary
 

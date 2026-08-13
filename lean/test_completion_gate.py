@@ -106,7 +106,11 @@ def main() -> int:
         raise RuntimeError("caller-controlled Lean path survived sanitization")
     print("REMOVED inherited Lean module paths")
 
-    with tempfile.TemporaryDirectory(prefix="erdos848-runtime-path-controls-") as raw:
+    runtime_test_parent = Path("/private/tmp")
+    with tempfile.TemporaryDirectory(
+        prefix="erdos848-runtime-path-controls-",
+        dir=runtime_test_parent if runtime_test_parent.is_dir() else None,
+    ) as raw:
         base = Path(raw)
         runtime_bin = base / "authenticated" / "bin"
         missing_lake_bin = base / "missing-lake" / "bin"
@@ -116,13 +120,16 @@ def main() -> int:
         lean = runtime_bin / "lean.exe"
         lake = runtime_bin / "lake.exe"
         missing_lake_lean = missing_lake_bin / "lean.exe"
+        shadow_lean = shadow_bin / "lean.exe"
         shadow_lake = shadow_bin / "lake.exe"
-        for path in (lean, lake, missing_lake_lean, shadow_lake):
+        for path in (lean, lake, missing_lake_lean, shadow_lean, shadow_lake):
             path.write_bytes(b"bounded executable fixture\n")
             path.chmod(0o755)
 
         original_platform = runner.sys.platform
         original_which = runner.shutil.which
+        original_lean_hash = runner.LEAN_EXECUTABLE_SHA256
+        original_lake_hash = runner.LAKE_EXECUTABLE_SHA256
 
         def fixture_which(name: str, path: str | None = None) -> str | None:
             if path is None:
@@ -135,32 +142,64 @@ def main() -> int:
 
         runner.sys.platform = "win32"
         runner.shutil.which = fixture_which
+        runner.LEAN_EXECUTABLE_SHA256 = runner.sha256_file(lean)
+        runner.LAKE_EXECUTABLE_SHA256 = runner.sha256_file(lake)
         try:
-            resolved_lean, resolved_lake = runner.resolved_runtime_executables(
-                {"PATH": str(runtime_bin)}
+            resolved_bin, resolved_lean, resolved_lake = (
+                runner.resolved_runtime_executables(
+                    runtime_bin, {"PATH": str(runtime_bin)}
+                )
             )
-            if (resolved_lean, resolved_lake) != (
-                lean.resolve(strict=True), lake.resolve(strict=True)
+            if (resolved_bin, resolved_lean, resolved_lake) != (
+                runtime_bin.resolve(strict=True),
+                lean.resolve(strict=True),
+                lake.resolve(strict=True),
             ):
                 raise RuntimeError("authenticated runtime pair resolved incorrectly")
-            print("ACCEPTED same-directory absolute Lean/Lake runtime")
+            print("ACCEPTED explicit same-directory absolute Lean/Lake runtime")
+            lean.write_bytes(b"mutated executable fixture\n")
             expect_rejected(
                 runner,
                 lambda: runner.resolved_runtime_executables(
-                    {"PATH": str(missing_lake_bin)}
+                    runtime_bin, {"PATH": str(runtime_bin)}
+                ),
+                "mutated Lean executable digest",
+            )
+            lean.write_bytes(b"bounded executable fixture\n")
+            expect_rejected(
+                runner,
+                lambda: runner.resolved_runtime_executables(
+                    missing_lake_bin, {"PATH": str(missing_lake_bin)}
                 ),
                 "missing Lake executable",
             )
             expect_rejected(
                 runner,
                 lambda: runner.resolved_runtime_executables(
+                    runtime_bin,
                     {
                         "PATH": os.pathsep.join(
                             (str(shadow_bin), str(runtime_bin))
                         )
                     }
                 ),
-                "PATH-shadowed Lake executable",
+                "paired PATH-shadowed runtime",
+            )
+            expect_rejected(
+                runner,
+                lambda: runner.resolved_runtime_executables(
+                    base / "missing" / "bin", {"PATH": str(runtime_bin)}
+                ),
+                "missing explicit runtime bin",
+            )
+            runtime_link = base / "runtime-link"
+            runtime_link.symlink_to(runtime_bin.parent, target_is_directory=True)
+            expect_rejected(
+                runner,
+                lambda: runner.resolved_runtime_executables(
+                    runtime_link / "bin", {"PATH": str(runtime_bin)}
+                ),
+                "symlinked runtime-bin ancestor",
             )
 
             project_path = base / "project-olean"
@@ -198,6 +237,8 @@ def main() -> int:
         finally:
             runner.sys.platform = original_platform
             runner.shutil.which = original_which
+            runner.LEAN_EXECUTABLE_SHA256 = original_lean_hash
+            runner.LAKE_EXECUTABLE_SHA256 = original_lake_hash
         if resolved_lean != lean.resolve(strict=True):
             raise RuntimeError("Lake environment resolved the wrong Lean executable")
         if resolved_entries != (
@@ -210,6 +251,21 @@ def main() -> int:
         ):
             raise RuntimeError("Lake environment query did not use absolute Lake")
         print("ACCEPTED absolute post-cache Lake environment resolution")
+
+    with tempfile.TemporaryDirectory(prefix="erdos848-post-cache-olean-") as raw:
+        upstream = Path(raw)
+        runner.require_fresh_build(upstream)
+        injected = (
+            upstream / "lean4" / ".lake" / "build" / "lib" / "lean"
+            / "Erdos848" / "Foo.olean"
+        )
+        injected.parent.mkdir(parents=True)
+        injected.write_bytes(b"injected post-cache project OLean\n")
+        expect_rejected(
+            runner,
+            lambda: runner.require_fresh_build(upstream),
+            "post-cache injected project OLean",
+        )
 
     with tempfile.TemporaryDirectory(prefix="erdos848-lean-path-controls-") as raw:
         base = Path(raw)
